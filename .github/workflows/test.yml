@@ -28,13 +28,16 @@ jobs:
         cache-dependency-path: go.sum
 
     - name: Verify dependencies
+      shell: bash
       run: go mod verify
 
     - name: Tidy dependencies
+      shell: bash
       run: go mod tidy
       continue-on-error: true
 
     - name: Check for uncommitted changes
+      shell: bash
       run: |
         if [[ -n "$(git status --porcelain)" ]]; then
           echo "::error::go.mod or go.sum has uncommitted changes after go mod tidy"
@@ -43,6 +46,7 @@ jobs:
         fi
 
     - name: Run go vet
+      shell: bash
       run: go vet ./...
 
     - name: Run staticcheck
@@ -51,6 +55,7 @@ jobs:
         version: "latest"
 
     - name: Run tests
+      shell: bash
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
     - name: Upload coverage to Codecov
