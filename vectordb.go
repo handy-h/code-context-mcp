@@ -107,7 +107,12 @@ func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 		return fmt.Errorf("创建索引失败: %v", err)
 	}
 
-	log.Printf("集合 %s 创建完成", v.cfg.CollectionName)
+	// 加载集合到内存（Zilliz Serverless 需要显式加载才能搜索）
+	if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
+		return fmt.Errorf("加载集合失败: %v", err)
+	}
+
+	log.Printf("集合 %s 创建并加载完成", v.cfg.CollectionName)
 	return nil
 }
 
