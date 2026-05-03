@@ -142,6 +142,93 @@ PROJECT_PATH=/path/to/your/project
 
 > **注意**：首次运行会创建名为 `code-context` 的集合。如果集合已存在，会先删除旧数据再重建索引。
 
+## MCP 启动包装器 `start-mcp.sh`
+
+`start-mcp.sh` 是一个启动包装脚本，自动从 `opencode.json` 中读取环境变量并注入到 MCP 进程，**解决 OpenCode 不自动注入 env 配置的问题**。
+
+### 适用场景
+
+| 场景 | 说明 |
+|------|------|
+| **单个项目** | 将 `start-mcp.sh` 和 `code_context_mcp` 复制到项目根目录 |
+| **多个项目共用** | 将 `start-mcp.sh` 放在公共路径，各项目通过 `MCP_BINARY` 指定二进制路径 |
+| **OpenCode 用户** | 必须使用包装器，因为 OpenCode 的 `mcp.code-context.env` 不会被自动注入 |
+| **其他工具** | 如果工具本身支持 `command.env` 注入，则不需要包装器 |
+
+### 快速使用
+
+```bash
+# 1. 将包装器和二进制复制到项目目录
+cp /path/to/code-context-mcp/start-mcp.sh    ./start-mcp.sh
+cp /path/to/code-context-mcp/code_context_mcp ./code_context_mcp
+
+# 2. 查看版本（验证 env 注入是否正常）
+./start-mcp.sh -version
+
+# 3. 构建索引
+./start-mcp.sh -index /path/to/your/project
+
+# 4. 启动 MCP 服务器
+./start-mcp.sh
+```
+
+> 提示：也可以使用软链代替复制 —— `ln -s` 一次后，重新 `make build` 会自动生效。
+
+### 多项目共享配置
+
+如果你有多个项目共用一个 MCP 服务，可以将包装器和二进制放在公共目录：
+
+```bash
+# 放在 ~/bin 或 /opt/code-context 等公共位置
+cp code_context_mcp /opt/code-context/
+cp start-mcp.sh     /opt/code-context/
+```
+
+然后在每个项目目录创建 `opencode.json`，`command` 指向公共路径：
+
+```json
+{
+  "mcp": {
+    "code-context": {
+      "type": "local",
+      "command": ["/opt/code-context/start-mcp.sh"],
+      "env": {
+        "ZILLIZ_URI": "https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com",
+        "ZILLIZ_TOKEN": "your_api_token_here",
+        "COLLECTION_NAME": "my_project",
+        "AUTO_INDEX": "true",
+        "PROJECT_PATH": "/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+> 每个项目的 `COLLECTION_NAME` 应不同，以避免向量数据互相干扰。
+
+### 环境变量覆盖
+
+包装器支持以下环境变量自定义行为：
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `MCP_BINARY` | 脚本同目录下的 `code_context_mcp` | 指定 MCP 二进制路径 |
+| `CONFIG_PATH` | 自动向上搜索 `opencode.json` | 指定配置文件路径 |
+
+```bash
+# 示例：手动指定配置文件和二进制
+MCP_BINARY=/opt/code-context/code_context_mcp \
+  CONFIG_PATH=/home/user/projects/my-app/opencode.json \
+  ./start-mcp.sh -index /home/user/projects/my-app
+```
+
+### 搜索 `opencode.json` 的优先级
+
+1. `CONFIG_PATH` 环境变量指定路径
+2. 当前工作目录下的 `opencode.json`
+3. 逐级向上搜索父目录的 `opencode.json`
+4. `$HOME/.config/opencode/opencode.json`（用户级配置）
+
 ## AI 编程工具 MCP 配置
 
 ### CodeArts (华为云码道)
@@ -169,9 +256,51 @@ PROJECT_PATH=/path/to/your/project
 }
 ```
 
-### OpenCode / Cursor / Windsurf / Claude Desktop
+### OpenCode
 
-这些工具使用相同的 MCP 配置格式（基于 `~/.config/` 或项目 `.mcp.json`）：
+> ⚠️ **重要**：OpenCode 目前**不会自动注入** `opencode.json` 中 `mcp.code-context.env` 里配置的环境变量，因此必须使用 `start-mcp.sh` 包装器来启动。
+
+**项目级配置** (`opencode.json` 放在项目根目录)：
+
+```json
+{
+  "mcp": {
+    "code-context": {
+      "type": "local",
+      "command": ["./start-mcp.sh"],
+      "env": {
+        "ZILLIZ_URI": "https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com",
+        "ZILLIZ_TOKEN": "your_api_token_here",
+        "COLLECTION_NAME": "code-context",
+        "AUTO_INDEX": "true",
+        "PROJECT_PATH": "/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+**用户级配置** (`~/.config/opencode/opencode.json`)：
+
+```json
+{
+  "mcp": {
+    "code-context": {
+      "type": "local",
+      "command": ["/opt/code-context/start-mcp.sh"],
+      "env": {
+        "ZILLIZ_URI": "https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com",
+        "ZILLIZ_TOKEN": "your_api_token_here",
+        "PROJECT_PATH": "/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+### Cursor / Windsurf / Claude Desktop
+
+这些工具支持直接在 MCP 配置中设置 `env`，无需包装器：
 
 **项目级配置** (`.mcp.json` 放在项目根目录)：
 

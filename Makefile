@@ -97,6 +97,14 @@ dev: build ## Build and run in development mode
 	@echo "Running in development mode..."
 	@./$(BINARY_NAME) -index . || true
 
+start-mcp: ## Start MCP server via wrapper (injects env from opencode.json)
+	@echo "Starting MCP via wrapper..."
+	@./start-mcp.sh
+
+index-mcp: build ## Build and index project via wrapper
+	@echo "Indexing project via wrapper..."
+	@./start-mcp.sh -index "$(PWD)"
+
 # Cross-compilation targets
 build-linux: ## Build for Linux
 	@echo "Building for Linux..."
