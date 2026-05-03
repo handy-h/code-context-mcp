@@ -4,6 +4,7 @@
 # Go 构建产物
 code-context-mcp
 *.exe
+code_context_mcp
 
 # 索引状态文件
 .code-context-index-state.json
@@ -21,3 +22,4 @@ Thumbs.db
 
 # CodeArts Doer 内部目录
 .codeartsdoer/
+

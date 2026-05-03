@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -29,6 +31,8 @@ type Config struct {
 
 // LoadConfig 从环境变量加载配置，提供合理默认值
 func LoadConfig() Config {
+	collectionName := normalizeCollectionName(getEnv("COLLECTION_NAME", "code_context"))
+
 	return Config{
 		OllamaURL:      getEnv("OLLAMA_URL", "http://localhost:11434"),
 		OllamaModel:    getEnv("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest"),
@@ -36,7 +40,7 @@ func LoadConfig() Config {
 
 		ZillizURI:      getEnv("ZILLIZ_URI", ""),
 		ZillizToken:    getEnv("ZILLIZ_TOKEN", ""),
-		CollectionName: getEnv("COLLECTION_NAME", "code-context"),
+		CollectionName: collectionName,
 
 		ScanExtensions: getEnvSlice("SCAN_EXTENSIONS", []string{".go", ".vue", ".js", ".ts", ".py", ".md"}),
 		ChunkSize:      getEnvInt("CHUNK_SIZE", 800),
@@ -45,6 +49,37 @@ func LoadConfig() Config {
 		ProjectPath:    getEnv("PROJECT_PATH", ""),
 		IndexStatePath: getEnv("INDEX_STATE_PATH", ""),
 	}
+}
+
+// normalizeCollectionName 规范化 Milvus 集合名称
+// Milvus 集合名称规则：以字母或下划线开头，只允许字母、数字、下划线，长度 1~255
+func normalizeCollectionName(name string) string {
+	original := name
+
+	// 将连字符和其他非法字符替换为下划线
+	re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	name = re.ReplaceAllString(name, "_")
+
+	// 确保不以数字开头（如果是，添加前缀 "c_"）
+	if len(name) > 0 && name[0] >= '0' && name[0] <= '9' {
+		name = "c_" + name
+	}
+
+	// 确保不为空
+	if name == "" {
+		name = "code_context"
+	}
+
+	// 截断至 255 字符
+	if len(name) > 255 {
+		name = name[:255]
+	}
+
+	if name != original {
+		fmt.Fprintf(os.Stderr, "警告: 集合名称已规范化: %q → %q (Milvus 集合名称只允许字母、数字、下划线)\n", original, name)
+	}
+
+	return name
 }
 
 func getEnv(key, fallback string) string {
