@@ -150,7 +150,7 @@ PROJECT_PATH=/path/to/your/project
 
 | 场景 | 说明 |
 |------|------|
-| **单个项目** | 将 `start-mcp.sh` 和 `code_context_mcp` 复制到项目根目录 |
+| **单个项目** | 将 `start-mcp.sh` 和 `code-context-mcp` 复制到项目根目录 |
 | **多个项目共用** | 将 `start-mcp.sh` 放在公共路径，各项目通过 `MCP_BINARY` 指定二进制路径 |
 | **OpenCode 用户** | 必须使用包装器，因为 OpenCode 的 `mcp.code-context.env` 不会被自动注入 |
 | **其他工具** | 如果工具本身支持 `command.env` 注入，则不需要包装器 |
@@ -160,7 +160,7 @@ PROJECT_PATH=/path/to/your/project
 ```bash
 # 1. 将包装器和二进制复制到项目目录
 cp /path/to/code-context-mcp/start-mcp.sh    ./start-mcp.sh
-cp /path/to/code-context-mcp/code_context_mcp ./code_context_mcp
+cp /path/to/code-context-mcp/code-context-mcp ./code-context-mcp
 
 # 2. 查看版本（验证 env 注入是否正常）
 ./start-mcp.sh -version
@@ -180,7 +180,7 @@ cp /path/to/code-context-mcp/code_context_mcp ./code_context_mcp
 
 ```bash
 # 放在 ~/bin 或 /opt/code-context 等公共位置
-cp code_context_mcp /opt/code-context/
+cp code-context-mcp /opt/code-context/
 cp start-mcp.sh     /opt/code-context/
 ```
 
@@ -212,12 +212,12 @@ cp start-mcp.sh     /opt/code-context/
 
 | 环境变量 | 默认值 | 说明 |
 |---------|--------|------|
-| `MCP_BINARY` | 脚本同目录下的 `code_context_mcp` | 指定 MCP 二进制路径 |
+| `MCP_BINARY` | 脚本同目录下的 `code-context-mcp` | 指定 MCP 二进制路径 |
 | `CONFIG_PATH` | 自动向上搜索 `opencode.json` | 指定配置文件路径 |
 
 ```bash
 # 示例：手动指定配置文件和二进制
-MCP_BINARY=/opt/code-context/code_context_mcp \
+MCP_BINARY=/opt/code-context/code-context-mcp \
   CONFIG_PATH=/home/user/projects/my-app/opencode.json \
   ./start-mcp.sh -index /home/user/projects/my-app
 ```

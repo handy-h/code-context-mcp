@@ -2,7 +2,7 @@
 # ============================================================================
 # start-mcp.sh — MCP 启动包装器
 # 功能：从 opencode.json 中读取 mcp.code-context.env 环境变量，
-#       注入到 code_context_mcp 进程后执行。
+#       注入到 code-context-mcp 进程后执行。
 #
 # 用法：
 #   ./start-mcp.sh                     # 启动 MCP 服务器模式
@@ -10,7 +10,7 @@
 #   ./start-mcp.sh -version            # 查看版本
 #
 # 环境变量：
-#   MCP_BINARY   指定 code_context_mcp 路径（默认：本脚本所在目录下的 code_context_mcp）
+#   MCP_BINARY   指定 code-context-mcp 路径（默认：本脚本所在目录下的 code-context-mcp）
 #   CONFIG_PATH  指定 opencode.json 路径（默认：自动向上搜索）
 # ============================================================================
 set -euo pipefail
@@ -27,7 +27,7 @@ error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 # ---- 路径解析 --------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MCP_BINARY="${MCP_BINARY:-${SCRIPT_DIR}/code_context_mcp}"
+MCP_BINARY="${MCP_BINARY:-${SCRIPT_DIR}/code-context-mcp}"
 
 # ---- opencode.json 查找 ----------------------------------------------------
 # 依次搜索：CONFIG_PATH 环境变量 → 当前目录 → 逐级父目录 → $HOME/.config/opencode/
@@ -129,7 +129,7 @@ done <<< "$ENV_LINES"
 # ---- 校验 MCP 二进制 -------------------------------------------------------
 if [[ ! -x "$MCP_BINARY" ]]; then
     error "MCP 二进制文件不存在或不可执行: $MCP_BINARY"
-    error "请先执行 make build 或设置 MCP_BINARY 环境变量"
+    error "请先执行 make build"
     exit 1
 fi
 

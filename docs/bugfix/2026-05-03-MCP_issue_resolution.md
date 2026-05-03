@@ -96,8 +96,8 @@
   export ZILLIZ_URI="<your_uri>"
   export ZILLIZ_TOKEN="<your_token>"
   export PROJECT_PATH="/home/gao/Builds/Lab-record-go"
-  # 启动并索引
-  ./code_context_mcp -index "$PROJECT_PATH"
+  # 启动并索引（二进制名由 make build 生成: code-context-mcp）
+  ./code-context-mcp -index "$PROJECT_PATH"
   ```
 - 使用 wrapper 的等效命令:
   ```bash
@@ -129,11 +129,11 @@
 ```
 
 ### 步骤 2：放置脚本
-将 start-mcp.sh 和 code_context_mcp 放置在同一目录（或确保在 PATH 中）：
+将 start-mcp.sh 和 code-context-mcp 放置在同一目录（或确保在 PATH 中）：
 ```bash
-# 推荐：在项目根目录创建 symlink
-ln -s /path/to/code-context-mcp/start-mcp.sh ./start-mcp.sh
-ln -s /path/to/code-context-mcp/code_context_mcp ./code_context_mcp
+# 推荐：在项目根目录创建 symlink，二进制名与 make build 输出一致
+ln -s /path/to/code-context-mcp/start-mcp.sh       ./start-mcp.sh
+ln -s /path/to/code-context-mcp/code-context-mcp   ./code-context-mcp
 ```
 
 ### 步骤 3：验证
