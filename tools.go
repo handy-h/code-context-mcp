@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 	"strconv"
 	"time"
 )
@@ -201,7 +201,7 @@ func RegisterTools(server *MCPServer, cfg Config, indexMgr *IndexManager) {
 
 		log.Printf("file_context: path=%q, mode=%q", filePath, mode)
 
-		content, err := ioutil.ReadFile(filePath)
+		content, err := os.ReadFile(filePath)
 		if err != nil {
 			return "", fmt.Errorf("读取文件失败: %v", err)
 		}

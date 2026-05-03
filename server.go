@@ -32,14 +32,14 @@ type jsonRPCError struct {
 
 // ================= MCP 协议数据结构 =================
 
-type initializeParams struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    map[string]interface{} `json:"capabilities"`
-	ClientInfo      struct {
-		Name    string `json:"name"`
-		Version string `json:"version"`
-	} `json:"clientInfo"`
-}
+// type initializeParams struct {
+// 	ProtocolVersion string                 `json:"protocolVersion"`
+// 	Capabilities    map[string]interface{} `json:"capabilities"`
+// 	ClientInfo      struct {
+// 		Name    string `json:"name"`
+// 		Version string `json:"version"`
+// 	} `json:"clientInfo"`
+// }
 
 type initializeResult struct {
 	ProtocolVersion string                 `json:"protocolVersion"`

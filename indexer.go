@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -42,7 +41,7 @@ func ScanFiles(root string, extensions []string) ([]document, error) {
 		ext := strings.ToLower(filepath.Ext(path))
 		for _, target := range extensions {
 			if ext == target {
-				content, err := ioutil.ReadFile(path)
+				content, err := os.ReadFile(path)
 				if err == nil {
 					// 使用相对路径
 					relPath, err := filepath.Rel(root, path)

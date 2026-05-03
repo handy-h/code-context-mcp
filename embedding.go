@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 )
@@ -43,26 +43,26 @@ func GetEmbedding(cfg Config, text string) ([]float32, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Ollama请求失败(请确认Ollama已启动): %v", err)
+		return nil, fmt.Errorf("Ollama request failed (please confirm Ollama is running): %v", err)
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应体失败: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Ollama返回错误状态码: %d, 响应: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("Ollama returned error status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result ollamaResponse
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("JSON解析失败: %v, 响应体: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("JSON parsing failed: %v, response body: %s", err, string(bodyBytes))
 	}
 
 	if len(result.Embedding) == 0 {
-		return nil, fmt.Errorf("Ollama返回空向量, 响应: %s", string(bodyBytes))
+		return nil, fmt.Errorf("Ollama returned empty vector, response: %s", string(bodyBytes))
 	}
 
 	return result.Embedding, nil

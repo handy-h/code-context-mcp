@@ -81,8 +81,8 @@ var (
 	goStructRe      = regexp.MustCompile(`^type\s+(\w+)\s+struct`)
 	goInterfaceRe   = regexp.MustCompile(`^type\s+(\w+)\s+interface`)
 	goVarRe         = regexp.MustCompile(`^(var|const)\s+`)
-	goPackageRe     = regexp.MustCompile(`^package\s+`)
-	goImportRe      = regexp.MustCompile(`^import\s+`)
+	// goPackageRe     = regexp.MustCompile(`^package\s+`)
+	// goImportRe      = regexp.MustCompile(`^import\s+`)
 )
 
 func splitGo(content string, filePath string) []CodeChunk {
