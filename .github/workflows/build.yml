@@ -26,6 +26,9 @@ jobs:
             artifact_name: code-context-mcp-windows-amd64.exe
             output_name: code-context-mcp.exe
 
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -56,6 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
     - name: Checkout code
