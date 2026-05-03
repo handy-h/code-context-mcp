@@ -1,5 +1,6 @@
 # GoReleaser configuration
 # https://goreleaser.com
+version: 2
 
 project_name: code-context-mcp
 
@@ -32,7 +33,7 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    # format is deprecated, using default tar.gz format
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -50,7 +51,7 @@ checksum:
   name_template: 'checksums.txt'
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  # name_template is deprecated, using default snapshot naming
 
 changelog:
   sort: asc
@@ -65,22 +66,23 @@ release:
   draft: false
   replace_existing_draft: true
 
-dockers:
+dockers_v2:
   - image_templates:
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:{{ .Version }}"
       - "ghcr.io/{{ .Env.GITHUB_REPOSITORY }}:latest"
     dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/amd64,linux/arm64"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.description=MCP server for AI coding assistants providing code context through semantic search, symbol lookup, and impact analysis"
-      - "--label=org.opencontainers.image.url=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
-      - "--label=org.opencontainers.image.source=https://github.com/{{.Env.GITHUB_REPOSITORY}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.revision={{.Commit}}"
-      - "--label=org.opencontainers.image.licenses=MIT"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: "{{.ProjectName}}"
+      org.opencontainers.image.description: "MCP server for AI coding assistants providing code context through semantic search, symbol lookup, and impact analysis"
+      org.opencontainers.image.url: "https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      org.opencontainers.image.source: "https://github.com/{{.Env.GITHUB_REPOSITORY}}"
+      org.opencontainers.image.version: "{{.Version}}"
+      org.opencontainers.image.created: "{{.Date}}"
+      org.opencontainers.image.revision: "{{.Commit}}"
+      org.opencontainers.image.licenses: "MIT"
     extra_files:
       - LICENSE
       - README.md
