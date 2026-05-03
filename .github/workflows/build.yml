@@ -44,7 +44,8 @@ jobs:
         GOOS=${{ matrix.os == 'ubuntu-latest' && 'linux' || matrix.os == 'macos-latest' && 'darwin' || 'windows' }}
         GOARCH=amd64
         CGO_ENABLED=0
-        go build -v -trimpath -ldflags="-s -w -X main.version=$(git describe --tags --always --dirty)" -o ${{ matrix.output_name }} .
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.0.0-dev")
+        go build -v -trimpath -ldflags="-s -w -X main.version=$VERSION" -o ${{ matrix.output_name }} .
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
