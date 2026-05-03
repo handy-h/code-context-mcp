@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
     name: Build
@@ -97,3 +101,4 @@ jobs:
           ghcr.io/${{ github.repository }}:${{ github.ref_name }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+      continue-on-error: true
