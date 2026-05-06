@@ -14,6 +14,7 @@ type EmbeddingProviderType string
 const (
 	ProviderOllama EmbeddingProviderType = "ollama"
 	ProviderOpenAI EmbeddingProviderType = "openai"
+	ProviderGemini EmbeddingProviderType = "gemini"
 )
 
 // Config MCP 服务器全局配置
@@ -30,6 +31,11 @@ type Config struct {
 	OpenAIBaseURL string
 	OpenAIModel   string
 	OpenAIAPIKey  string
+
+	// Google Gemini 配置
+	GeminiBaseURL string
+	GeminiModel   string
+	GeminiAPIKey  string
 
 	// Zilliz Cloud 向量数据库
 	ZillizURI      string
@@ -54,6 +60,8 @@ func LoadConfig() Config {
 	switch provider {
 	case "openai":
 		embeddingProvider = ProviderOpenAI
+	case "gemini":
+		embeddingProvider = ProviderGemini
 	case "ollama":
 		fallthrough
 	default:
@@ -70,6 +78,10 @@ func LoadConfig() Config {
 		OpenAIBaseURL: getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
 		OpenAIModel:   getEnv("OPENAI_EMBED_MODEL", "text-embedding-ada-002"),
 		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", ""),
+
+		GeminiBaseURL: getEnv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"),
+		GeminiModel:   getEnv("GEMINI_EMBED_MODEL", "embedding-001"),
+		GeminiAPIKey:  getEnv("GEMINI_API_KEY", ""),
 
 		ZillizURI:      getEnv("ZILLIZ_URI", ""),
 		ZillizToken:    getEnv("ZILLIZ_TOKEN", ""),

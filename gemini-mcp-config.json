@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "code-context": {
+      "command": "/Users/mengshu/Builds/Ashen_protocol/code-context-mcp",
+      "args": [],
+      "env": {
+        "EMBEDDING_PROVIDER": "gemini",
+        "GEMINI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta",
+        "GEMINI_EMBED_MODEL": "embedding-001",
+        "GEMINI_API_KEY": "AIzaSyDsX5_Lv8NmU0WO-j3qw9EEdCL-OTJdqDo",
+        "EMBEDDING_DIM": "768",
+        "ZILLIZ_URI": "https://in03-993f5eddd060d34.serverless.gcp-us-west1.cloud.zilliz.com",
+        "ZILLIZ_TOKEN": "8e7bc48a32ad05938421f77df8af2d5573f27343fb52879a209a7e12bdf728bc200e5931cfd42978d6ffbf43ad6e67cdc1f7f9f3",
+        "COLLECTION_NAME": "Ashen_protocol",
+        "AUTO_INDEX": "true",
+        "PROJECT_PATH": "/Users/mengshu/Builds/Ashen_protocol",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "CHUNK_SIZE": "800",
+        "MAX_CHUNK_SIZE": "1500"
+      }
+    }
+  }
+}
