@@ -80,9 +80,13 @@ func runMCPMode(cfg Config) {
 	if cfg.ProjectPath != "" && cfg.AutoIndex {
 		indexMgr = NewIndexManager(cfg, cfg.ProjectPath)
 		ctx := context.Background()
-		if err := indexMgr.CheckAndAutoIndex(ctx); err != nil {
-			log.Printf("自动索引失败: %v（服务仍可运行，请手动调用 index_project）", err)
-		}
+		// 后台异步构建索引，不阻塞 MCP 服务启动
+		// 避免全量构建耗时超过客户端初始化超时（通常 50s）
+		go func() {
+			if err := indexMgr.CheckAndAutoIndex(ctx); err != nil {
+				log.Printf("自动索引失败: %v（请稍后手动调用 index_project 重试）", err)
+			}
+		}()
 	}
 
 	server := NewMCPServer(cfg)

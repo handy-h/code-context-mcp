@@ -205,7 +205,7 @@ type geminiEmbeddingRequest struct {
 	Content   geminiEmbeddingContent       `json:"content"`
 	TaskType  string                       `json:"taskType,omitempty"`
 	Title     string                       `json:"title,omitempty"`
-	OutputDimensionality int               `json:"outputDimensionality,omitempty"`
+	OutputDimensionality int               `json:"output_dimensionality,omitempty"`
 }
 
 type geminiEmbeddingContent struct {
@@ -240,22 +240,18 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 			},
 		},
 		// 可选参数
-		"task_type": "RETRIEVAL_DOCUMENT", // 或 "RETRIEVAL_QUERY"
+		"taskType": "RETRIEVAL_DOCUMENT", // 或 "RETRIEVAL_QUERY"
 	}
 	
-	// 如果指定了维度，添加 outputDimensionality 参数
+	// 如果指定了维度，添加 output_dimensionality 参数
 	if p.dim > 0 {
-		reqBody["outputDimensionality"] = p.dim
+		reqBody["output_dimensionality"] = p.dim
 	}
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("json serialization failed: %v", err)
 	}
-
-	// 调试：打印请求体
-	fmt.Printf("Gemini API Request for model %s with dim %d:\n", p.model, p.dim)
-	fmt.Printf("Request body: %s\n", string(jsonData))
 
 	// Gemini API 使用 URL 参数传递 API 密钥
 	// 格式: https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=API_KEY
@@ -321,12 +317,7 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 
 	// 检查向量维度
 	if p.dim > 0 && len(embedding) != p.dim {
-		// 对于Gemini模型，如果请求的维度与返回的维度不匹配，我们仍然使用返回的维度
-		// 但记录警告信息
-		fmt.Printf("WARNING: embedding dimension mismatch for model %s: requested %d, got %d\n", p.model, p.dim, len(embedding))
-		fmt.Printf("INFO: Using actual dimension %d instead of configured %d\n", len(embedding), p.dim)
-		// 注意：调用者需要处理维度不匹配的情况
-		// Zilliz集合应该使用实际返回的维度创建
+		return nil, fmt.Errorf("embedding dimension mismatch: expected %d, got %d", p.dim, len(embedding))
 	}
 
 	return embedding, nil
@@ -334,30 +325,7 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 
 // GetDimension 返回向量维度
 func (p *GeminiProvider) GetDimension() int {
-	// 对于Gemini模型，返回配置的维度
-	// 注意：实际API返回的维度可能不同，需要在创建集合时注意
 	return p.dim
-}
-
-// GetActualDimension 获取模型的实际输出维度
-// 对于gemini-embedding-2，默认是3072维
-func (p *GeminiProvider) GetActualDimension() int {
-	// 根据模型名称返回默认维度
-	switch p.model {
-	case "embedding-001":
-		return 768 // 实际需要确认
-	case "gemini-embedding-2":
-		return 3072 // gemini-embedding-2 默认输出3072维
-	case "text-embedding-004":
-		return 768 // 需要确认
-	default:
-		// 如果包含embedding-2，假设是3072维
-		if strings.Contains(p.model, "embedding-2") {
-			return 3072
-		}
-		// 默认使用配置的维度
-		return p.dim
-	}
 }
 
 // NewEmbeddingProvider 创建嵌入模型提供者
