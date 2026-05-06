@@ -4,7 +4,7 @@
 # Go 构建产物
 code-context-mcp
 *.exe
-code_context_mcp
+code_context_mc
 
 # 索引状态文件
 .code-context-index-state.json

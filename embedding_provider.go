@@ -242,6 +242,11 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 		// 可选参数
 		"task_type": "RETRIEVAL_DOCUMENT", // 或 "RETRIEVAL_QUERY"
 	}
+	
+	// 如果指定了维度，添加 outputDimensionality 参数
+	if p.dim > 0 {
+		reqBody["outputDimensionality"] = p.dim
+	}
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
