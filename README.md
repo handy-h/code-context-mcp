@@ -24,13 +24,20 @@
 
 ### 1. 安装前置依赖
 
-**Ollama** — 本地嵌入模型服务
+#### 嵌入模型服务（选择一种）
+
+**选项 A: Ollama（本地嵌入模型服务）**
 
 ```bash
 # 安装 Ollama（参考 https://ollama.com）
 # 安装后拉取嵌入模型
 ollama pull nomic-embed-text:latest
 ```
+
+**选项 B: OpenAI 兼容 API（云端服务）**
+- OpenAI API：注册并获取 API 密钥
+- 兼容 OpenAI API 的服务：如 Azure OpenAI、OpenRouter、LiteLLM 等
+- 需要配置 `OPENAI_API_KEY` 环境变量
 
 **Zilliz Cloud** — 向量数据库服务
 
@@ -89,14 +96,35 @@ PROJECT_PATH=/path/to/your/project
 
 通过 `.env` 文件（与可执行文件同目录）或系统环境变量配置：
 
+#### 嵌入模型配置
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `EMBEDDING_PROVIDER` | `ollama` | 嵌入模型提供商 (`ollama`, `openai`) |
+| `EMBEDDING_DIM` | `768` | 向量维度（需与模型匹配） |
+
+#### Ollama 配置（当 `EMBEDDING_PROVIDER=ollama` 时使用）
 | 环境变量 | 默认值 | 说明 |
 |---------|--------|------|
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama 服务地址 |
-| `OLLAMA_EMBED_MODEL` | `nomic-embed-text:latest` | 嵌入模型名 |
-| `EMBEDDING_DIM` | `768` | 向量维度 |
+| `OLLAMA_EMBED_MODEL` | `nomic-embed-text:latest` | 嵌入模型名称 |
+
+#### OpenAI 兼容 API 配置（当 `EMBEDDING_PROVIDER=openai` 时使用）
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | API 基础地址 |
+| `OPENAI_EMBED_MODEL` | `text-embedding-ada-002` | 嵌入模型名称 |
+| `OPENAI_API_KEY` | （必填） | API 密钥 |
+
+#### 向量数据库配置
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
 | `ZILLIZ_URI` | （必填） | Zilliz Cloud URI |
 | `ZILLIZ_TOKEN` | （必填） | Zilliz Cloud API Token |
 | `COLLECTION_NAME` | `code-context` | Milvus 集合名，首次使用时会自动创建 |
+
+#### 索引配置
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
 | `SCAN_EXTENSIONS` | `.go,.vue,.js,.ts,.py,.md` | 扫描的文件扩展名 |
 | `CHUNK_SIZE` | `800` | 降级切分时的块大小（rune） |
 | `MAX_CHUNK_SIZE` | `1500` | 结构切分后超长块的最大 rune 数 |
@@ -113,24 +141,109 @@ cp .env.example .env
 ```
 
 ```env
-# Ollama 嵌入模型配置
-OLLAMA_URL=http://localhost:11434
-OLLAMA_EMBED_MODEL=nomic-embed-text:latest
+# ============================================================
+# 嵌入模型配置
+# ============================================================
+
+# 嵌入模型提供商 (支持: ollama, openai)
+EMBEDDING_PROVIDER=ollama
+
+# 嵌入向量维度
+# Ollama nomic-embed-text: 768
+# OpenAI text-embedding-ada-002: 1536
 EMBEDDING_DIM=768
 
+# ============================================================
+# Ollama 配置 (当 EMBEDDING_PROVIDER=ollama 时使用)
+# ============================================================
+
+# Ollama 服务地址
+OLLAMA_URL=http://localhost:11434
+
+# Ollama 嵌入模型名称
+OLLAMA_EMBED_MODEL=nomic-embed-text:latest
+
+# ============================================================
+# OpenAI 兼容 API 配置 (当 EMBEDDING_PROVIDER=openai 时使用)
+# ============================================================
+
+# OpenAI 兼容 API 基础地址
+# OPENAI_BASE_URL=https://api.openai.com/v1
+
+# OpenAI 嵌入模型名称
+# OPENAI_EMBED_MODEL=text-embedding-ada-002
+
+# OpenAI API 密钥
+# OPENAI_API_KEY=your_openai_api_key_here
+
+# ============================================================
 # Zilliz Cloud 向量数据库配置
+# ============================================================
+
 ZILLIZ_URI=https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com
-ZILLIZ_TOKEN=your_api_token_here
-COLLECTION_NAME=code-context
+ZILLIZ_TOKEN=your_zilliz_token_here
+COLLECTION_NAME=code_context
 
+# ============================================================
 # 索引配置
-SCAN_EXTENSIONS=.go,.vue,.js,.ts,.py,.md
-MAX_CHUNK_SIZE=1500
+# ============================================================
 
-# 自动索引配置
+SCAN_EXTENSIONS=.go,.vue,.js,.ts,.py,.md
+CHUNK_SIZE=800
+MAX_CHUNK_SIZE=1500
 AUTO_INDEX=true
 PROJECT_PATH=/path/to/your/project
 ```
+
+### 配置说明
+
+#### 使用 Ollama 嵌入模型（默认）
+这是默认配置，适合本地开发环境：
+
+```env
+EMBEDDING_PROVIDER=ollama
+EMBEDDING_DIM=768
+OLLAMA_URL=http://localhost:11434
+OLLAMA_EMBED_MODEL=nomic-embed-text:latest
+```
+
+确保 Ollama 服务正在运行：
+```bash
+ollama serve
+```
+
+#### 使用 OpenAI 兼容 API
+适合云环境或需要更高性能的场景：
+
+```env
+EMBEDDING_PROVIDER=openai
+EMBEDDING_DIM=1536  # 根据模型调整
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_EMBED_MODEL=text-embedding-ada-002
+OPENAI_API_KEY=your_api_key_here
+```
+
+支持的模型和维度：
+- `text-embedding-ada-002`: 1536 维
+- `text-embedding-3-small`: 1536 维
+- `text-embedding-3-large`: 3072 维
+
+#### 使用其他兼容 OpenAI API 的服务
+支持任何兼容 OpenAI Embeddings API 的服务：
+
+```env
+EMBEDDING_PROVIDER=openai
+EMBEDDING_DIM=1536  # 根据实际模型调整
+OPENAI_BASE_URL=https://your-api-endpoint.com/v1
+OPENAI_EMBED_MODEL=your-model-name
+OPENAI_API_KEY=your_api_key_here
+```
+
+兼容的服务包括：
+- Azure OpenAI
+- OpenRouter
+- LiteLLM
+- 其他兼容 OpenAI API 的嵌入服务
 
 ### 命令行索引模式
 
@@ -515,13 +628,17 @@ make docker-run
 
 ### Docker 使用
 
+**使用 Ollama（默认）：**
 ```bash
 # 构建镜像
 docker build -t code-context-mcp .
 
 # 运行容器
 docker run --rm -it \
+  -e EMBEDDING_PROVIDER=ollama \
   -e OLLAMA_URL=http://host.docker.internal:11434 \
+  -e OLLAMA_EMBED_MODEL=nomic-embed-text:latest \
+  -e EMBEDDING_DIM=768 \
   -e ZILLIZ_URI=https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com \
   -e ZILLIZ_TOKEN=your_api_token_here \
   -e PROJECT_PATH=/app/project \
@@ -529,7 +646,24 @@ docker run --rm -it \
   code-context-mcp
 ```
 
-> **注意**：Docker 容器需要访问宿主机上的 Ollama 服务，使用 `host.docker.internal` 作为主机地址。
+**使用 OpenAI 兼容 API：**
+```bash
+docker run --rm -it \
+  -e EMBEDDING_PROVIDER=openai \
+  -e OPENAI_BASE_URL=https://api.openai.com/v1 \
+  -e OPENAI_EMBED_MODEL=text-embedding-ada-002 \
+  -e OPENAI_API_KEY=your_api_key_here \
+  -e EMBEDDING_DIM=1536 \
+  -e ZILLIZ_URI=https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com \
+  -e ZILLIZ_TOKEN=your_api_token_here \
+  -e PROJECT_PATH=/app/project \
+  -v $(pwd):/app/project \
+  code-context-mcp
+```
+
+> **注意**：
+> - Docker 容器需要访问宿主机上的 Ollama 服务，使用 `host.docker.internal` 作为主机地址
+> - 如果使用 OpenAI 兼容 API，不需要配置网络连接，可以直接使用
 
 ## CI/CD 与发布
 

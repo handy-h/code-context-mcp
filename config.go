@@ -8,12 +8,28 @@ import (
 	"strings"
 )
 
+// EmbeddingProviderType 嵌入模型提供商类型
+type EmbeddingProviderType string
+
+const (
+	ProviderOllama EmbeddingProviderType = "ollama"
+	ProviderOpenAI EmbeddingProviderType = "openai"
+)
+
 // Config MCP 服务器全局配置
 type Config struct {
-	// Ollama 嵌入模型
-	OllamaURL      string
-	OllamaModel    string
-	EmbeddingDim   int
+	// 嵌入模型配置
+	EmbeddingProvider EmbeddingProviderType
+	EmbeddingDim      int
+
+	// Ollama 配置
+	OllamaURL   string
+	OllamaModel string
+
+	// OpenAI 兼容 API 配置
+	OpenAIBaseURL string
+	OpenAIModel   string
+	OpenAIAPIKey  string
 
 	// Zilliz Cloud 向量数据库
 	ZillizURI      string
@@ -32,11 +48,28 @@ type Config struct {
 // LoadConfig 从环境变量加载配置，提供合理默认值
 func LoadConfig() Config {
 	collectionName := normalizeCollectionName(getEnv("COLLECTION_NAME", "code_context"))
+	
+	provider := getEnv("EMBEDDING_PROVIDER", "ollama")
+	var embeddingProvider EmbeddingProviderType
+	switch provider {
+	case "openai":
+		embeddingProvider = ProviderOpenAI
+	case "ollama":
+		fallthrough
+	default:
+		embeddingProvider = ProviderOllama
+	}
 
 	return Config{
-		OllamaURL:      getEnv("OLLAMA_URL", "http://localhost:11434"),
-		OllamaModel:    getEnv("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest"),
-		EmbeddingDim:   getEnvInt("EMBEDDING_DIM", 768),
+		EmbeddingProvider: embeddingProvider,
+		EmbeddingDim:      getEnvInt("EMBEDDING_DIM", 768),
+
+		OllamaURL:   getEnv("OLLAMA_URL", "http://localhost:11434"),
+		OllamaModel: getEnv("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest"),
+
+		OpenAIBaseURL: getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+		OpenAIModel:   getEnv("OPENAI_EMBED_MODEL", "text-embedding-ada-002"),
+		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", ""),
 
 		ZillizURI:      getEnv("ZILLIZ_URI", ""),
 		ZillizToken:    getEnv("ZILLIZ_TOKEN", ""),
