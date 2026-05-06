@@ -4,6 +4,7 @@
 
 # Variables
 BINARY_NAME := code-context-mcp
+BINARY_PATH := cmd/code-context-mcp/$(BINARY_NAME)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD)
 DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
@@ -17,11 +18,11 @@ help: ## Display this help message
 
 build: ## Build the binary
 	@echo "Building $(BINARY_NAME)..."
-	@CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) .
+	@CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/code-context-mcp
 
 install: ## Install the binary to $GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
-	@CGO_ENABLED=0 go install -v -trimpath -ldflags="$(LDFLAGS)" .
+	@CGO_ENABLED=0 go install -v -trimpath -ldflags="$(LDFLAGS)" ./cmd/code-context-mcp
 
 test: ## Run tests
 	@echo "Running tests..."
@@ -51,7 +52,7 @@ fmt: ## Format code
 
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
-	@rm -f $(BINARY_NAME) $(BINARY_NAME).exe coverage.out coverage.html
+	@rm -f $(BINARY_PATH) $(BINARY_PATH).exe coverage.out coverage.html
 	@rm -rf dist/
 
 docker-build: ## Build Docker image
@@ -95,31 +96,31 @@ version: ## Show version information
 # Development targets
 dev: build ## Build and run in development mode
 	@echo "Running in development mode..."
-	@./$(BINARY_NAME) -index . || true
+	@./$(BINARY_PATH) -index . || true
 
 start-mcp: ## Start MCP server via wrapper (injects env from opencode.json)
 	@echo "Starting MCP via wrapper..."
-	@./start-mcp.sh
+	@./scripts/start-mcp.sh
 
 index-mcp: build ## Build and index project via wrapper
 	@echo "Indexing project via wrapper..."
-	@./start-mcp.sh -index "$(PWD)"
+	@./scripts/start-mcp.sh -index "$(PWD)"
 
 # Cross-compilation targets
 build-linux: ## Build for Linux
 	@echo "Building for Linux..."
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 .
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/code-context-mcp
 
 build-darwin: ## Build for macOS (Intel)
 	@echo "Building for macOS (Intel)..."
-	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-amd64 .
+	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-amd64 ./cmd/code-context-mcp
 
 build-darwin-arm64: ## Build for macOS (Apple Silicon)
 	@echo "Building for macOS (Apple Silicon)..."
-	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-arm64 .
+	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-arm64 ./cmd/code-context-mcp
 
 build-windows: ## Build for Windows
 	@echo "Building for Windows..."
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-windows-amd64.exe .
+	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-windows-amd64.exe ./cmd/code-context-mcp
 
 build-all: build-linux build-darwin build-darwin-arm64 build-windows ## Build for all platforms

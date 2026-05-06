@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -v -trimpath -ldflags="-s -w" -o code-context-mcp .
+RUN CGO_ENABLED=0 GOOS=linux go build -v -trimpath -ldflags="-s -w" -o code-context-mcp ./cmd/code-context-mcp
 
 # Runtime stage
 FROM alpine:latest
@@ -24,7 +24,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 # Copy binary and config files
-COPY --from=builder /app/code-context-mcp /app/
+COPY --from=builder /app/cmd/code-context-mcp/code-context-mcp /app/
 COPY --from=builder /app/.env.example /app/
 COPY --from=builder /app/LICENSE /app/
 COPY --from=builder /app/README.md /app/
