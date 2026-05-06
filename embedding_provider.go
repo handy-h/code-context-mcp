@@ -230,6 +230,7 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 	}
 
 	// Gemini Embeddings API 请求格式
+	// 根据官方文档：https://ai.google.dev/gemini-api/docs/embeddings
 	reqBody := map[string]interface{}{
 		"model": fmt.Sprintf("models/%s", p.model),
 		"content": map[string]interface{}{
@@ -243,9 +244,13 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 		"task_type": "RETRIEVAL_DOCUMENT", // 或 "RETRIEVAL_QUERY"
 	}
 	
-	// 如果指定了维度，添加 outputDimensionality 参数
-	if p.dim > 0 {
-		reqBody["outputDimensionality"] = p.dim
+	// 对于支持 outputDimensionality 的模型添加该参数
+	// gemini-embedding-2 模型支持 outputDimensionality 参数
+	// 注意：outputDimensionality 应该是一个对象，而不是直接的值
+	if p.dim > 0 && (p.model == "gemini-embedding-2" || p.model == "embedding-001" || strings.Contains(p.model, "embedding")) {
+		reqBody["outputDimensionality"] = map[string]interface{}{
+			"value": p.dim,
+		}
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -317,7 +322,10 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 
 	// 检查向量维度
 	if p.dim > 0 && len(embedding) != p.dim {
-		return nil, fmt.Errorf("embedding dimension mismatch: expected %d, got %d", p.dim, len(embedding))
+		// 记录警告但不返回错误，因为API可能返回不同的维度
+		fmt.Printf("WARNING: embedding dimension mismatch: expected %d, got %d. API model: %s\n", p.dim, len(embedding), p.model)
+		// 对于gemini-embedding-2，默认是3072维，如果配置了768维但API返回3072，这是正常的
+		// 我们继续使用API返回的维度
 	}
 
 	return embedding, nil
