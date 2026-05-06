@@ -132,13 +132,49 @@ PROJECT_PATH=/path/to/your/project
 | `PROJECT_PATH` | （空） | MCP 模式下自动索引的项目路径 |
 | `INDEX_STATE_PATH` | （自动） | 索引状态文件路径，默认 `{PROJECT_PATH}/.code-context-index-state.json` |
 
-### .env 文件模板
+### 配置选择指南
 
-复制 `.env.example` 为 `.env` 并填入实际值：
+根据你的使用场景选择合适的配置方案：
 
+| 场景 | 推荐配置 | 优点 | 缺点 | 适用场景 |
+|------|----------|------|------|----------|
+| **本地开发/测试** | Ollama + 本地模型 | 免费、离线可用、隐私安全 | 需要本地资源、性能一般 | 个人项目、开发环境、隐私敏感项目 |
+| **生产环境/团队协作** | OpenAI API | 高性能、稳定、易于部署 | 需要API费用、网络依赖 | 企业项目、团队协作、生产环境 |
+| **Azure 企业用户** | Azure OpenAI | 企业级安全、合规性、SLA保证 | Azure特定、配置复杂 | Azure云用户、企业合规需求 |
+| **多模型支持** | OpenRouter | 支持多种模型、灵活选择 | 第三方服务、可能有延迟 | 需要切换不同模型的场景 |
+| **自托管/代理** | LiteLLM + 自托管 | 完全控制、可自托管模型 | 需要维护、配置复杂 | 有自托管需求的团队 |
+
+### 配置文件模板
+
+我们提供了多个配置文件模板，根据你的使用场景选择合适的模板：
+
+#### 快速开始
 ```bash
+# 使用默认模板（Ollama）
 cp .env.example .env
+
+# 或者使用特定场景的模板
+cp config-examples/.env.ollama.example .env        # Ollama 本地部署
+cp config-examples/.env.openai.example .env         # OpenAI 官方 API
+cp config-examples/.env.openai-compatible.example .env  # 兼容 OpenAI API 的服务
 ```
+
+#### 配置文件模板说明
+
+项目提供了以下配置文件模板：
+
+| 模板文件 | 适用场景 | 说明 |
+|---------|---------|------|
+| `.env.example` | 通用模板 | 包含所有配置项，注释详细 |
+| `config-examples/.env.ollama.example` | 本地开发 | 使用 Ollama 本地嵌入模型服务 |
+| `config-examples/.env.openai.example` | 生产环境 | 使用 OpenAI 官方 API |
+| `config-examples/.env.openai-compatible.example` | 兼容服务 | 使用 Azure OpenAI、OpenRouter 等兼容服务 |
+
+#### 使用步骤
+1. **选择模板**: 根据你的场景选择合适的模板
+2. **复制配置**: 将模板复制为 `.env` 文件
+3. **编辑配置**: 填入你的实际配置值
+4. **运行服务**: 启动 MCP 服务
 
 ```env
 # ============================================================
@@ -244,6 +280,134 @@ OPENAI_API_KEY=your_api_key_here
 - OpenRouter
 - LiteLLM
 - 其他兼容 OpenAI API 的嵌入服务
+
+### MCP 配置文件写法
+
+#### OpenCode MCP 配置
+
+在 OpenCode 或 Claude Desktop 的 MCP 配置文件中，可以这样配置：
+
+**使用 Ollama（本地开发）：**
+```json
+{
+  "mcpServers": {
+    "code-context": {
+      "command": "/path/to/code-context-mcp/start-mcp.sh",
+      "env": {
+        "EMBEDDING_PROVIDER": "ollama",
+        "OLLAMA_URL": "http://localhost:11434",
+        "OLLAMA_EMBED_MODEL": "nomic-embed-text:latest",
+        "EMBEDDING_DIM": "768",
+        "ZILLIZ_URI": "https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com",
+        "ZILLIZ_TOKEN": "your_zilliz_token_here",
+        "COLLECTION_NAME": "code_context",
+        "PROJECT_PATH": "/path/to/your/project",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "CHUNK_SIZE": "800",
+        "MAX_CHUNK_SIZE": "1500",
+        "AUTO_INDEX": "true"
+      }
+    }
+  }
+}
+```
+
+**使用 OpenAI API：**
+```json
+{
+  "mcpServers": {
+    "code-context": {
+      "command": "/path/to/code-context-mcp/start-mcp.sh",
+      "env": {
+        "EMBEDDING_PROVIDER": "openai",
+        "OPENAI_BASE_URL": "https://api.openai.com/v1",
+        "OPENAI_EMBED_MODEL": "text-embedding-ada-002",
+        "OPENAI_API_KEY": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "EMBEDDING_DIM": "1536",
+        "ZILLIZ_URI": "https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com",
+        "ZILLIZ_TOKEN": "your_zilliz_token_here",
+        "COLLECTION_NAME": "code_context",
+        "PROJECT_PATH": "/path/to/your/project",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "CHUNK_SIZE": "800",
+        "MAX_CHUNK_SIZE": "1500",
+        "AUTO_INDEX": "true"
+      }
+    }
+  }
+}
+```
+
+**使用 Azure OpenAI：**
+```json
+{
+  "mcpServers": {
+    "code-context": {
+      "command": "/path/to/code-context-mcp/start-mcp.sh",
+      "env": {
+        "EMBEDDING_PROVIDER": "openai",
+        "OPENAI_BASE_URL": "https://your-resource.openai.azure.com/openai/deployments/text-embedding-ada-002",
+        "OPENAI_EMBED_MODEL": "text-embedding-ada-002",
+        "OPENAI_API_KEY": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "EMBEDDING_DIM": "1536",
+        "ZILLIZ_URI": "https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com",
+        "ZILLIZ_TOKEN": "your_zilliz_token_here",
+        "COLLECTION_NAME": "code_context",
+        "PROJECT_PATH": "/path/to/your/project",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "CHUNK_SIZE": "800",
+        "MAX_CHUNK_SIZE": "1500",
+        "AUTO_INDEX": "true"
+      }
+    }
+  }
+}
+```
+
+**使用 OpenRouter：**
+```json
+{
+  "mcpServers": {
+    "code-context": {
+      "command": "/path/to/code-context-mcp/start-mcp.sh",
+      "env": {
+        "EMBEDDING_PROVIDER": "openai",
+        "OPENAI_BASE_URL": "https://openrouter.ai/api/v1",
+        "OPENAI_EMBED_MODEL": "openai/text-embedding-ada-002",
+        "OPENAI_API_KEY": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "EMBEDDING_DIM": "1536",
+        "ZILLIZ_URI": "https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com",
+        "ZILLIZ_TOKEN": "your_zilliz_token_here",
+        "COLLECTION_NAME": "code_context",
+        "PROJECT_PATH": "/path/to/your/project",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "CHUNK_SIZE": "800",
+        "MAX_CHUNK_SIZE": "1500",
+        "AUTO_INDEX": "true"
+      }
+    }
+  }
+}
+```
+
+#### 简化配置
+
+如果使用 `.env` 文件，可以简化 MCP 配置：
+
+```json
+{
+  "mcpServers": {
+    "code-context": {
+      "command": "/path/to/code-context-mcp/start-mcp.sh",
+      "env": {
+        "PROJECT_PATH": "/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+`start-mcp.sh` 脚本会自动从项目目录的 `.env` 文件加载配置，只需要在 `.env` 文件中设置所有环境变量即可。
 
 ### 命令行索引模式
 
