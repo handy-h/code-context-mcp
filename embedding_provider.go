@@ -229,13 +229,18 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 		return nil, fmt.Errorf("Gemini API key is required")
 	}
 
+	// Gemini Embeddings API 请求格式
 	reqBody := map[string]interface{}{
 		"model": fmt.Sprintf("models/%s", p.model),
 		"content": map[string]interface{}{
 			"parts": []map[string]interface{}{
-				{"text": text},
+				{
+					"text": text,
+				},
 			},
 		},
+		// 可选参数
+		"task_type": "RETRIEVAL_DOCUMENT", // 或 "RETRIEVAL_QUERY"
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -244,6 +249,7 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 	}
 
 	// Gemini API 使用 URL 参数传递 API 密钥
+	// 格式: https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=API_KEY
 	url := fmt.Sprintf("%s/models/%s:embedContent?key=%s", p.baseURL, p.model, p.apiKey)
 	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
 	if err != nil {
@@ -263,23 +269,38 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
+
+
 	if resp.StatusCode != http.StatusOK {
+		// 尝试解析错误信息
+		var errResp map[string]interface{}
+		if json.Unmarshal(bodyBytes, &errResp) == nil {
+			if errorObj, ok := errResp["error"].(map[string]interface{}); ok {
+				if message, ok := errorObj["message"].(string); ok {
+					return nil, fmt.Errorf("Gemini API error: %s (status: %d)", message, resp.StatusCode)
+				}
+			}
+		}
 		return nil, fmt.Errorf("Gemini API returned error status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
 	}
 
+	// 解析响应 - 根据测试输出，响应格式是 {"embedding": {"values": [...]}}
 	var result map[string]interface{}
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
 		return nil, fmt.Errorf("json parsing failed: %v, response body: %s", err, string(bodyBytes))
 	}
 
-	// 解析响应，支持不同的响应格式
+	// 提取嵌入向量
 	var embedding []float32
 	if embeddingObj, ok := result["embedding"].(map[string]interface{}); ok {
 		if values, ok := embeddingObj["values"].([]interface{}); ok {
 			embedding = make([]float32, len(values))
 			for i, v := range values {
+				// JSON 数字默认解析为 float64
 				if f, ok := v.(float64); ok {
 					embedding[i] = float32(f)
+				} else {
+					return nil, fmt.Errorf("invalid embedding value at index %d: %v", i, v)
 				}
 			}
 		}
@@ -287,6 +308,11 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 
 	if len(embedding) == 0 {
 		return nil, fmt.Errorf("Gemini API returned empty or invalid vector, response: %s", string(bodyBytes))
+	}
+
+	// 检查向量维度
+	if p.dim > 0 && len(embedding) != p.dim {
+		return nil, fmt.Errorf("embedding dimension mismatch: expected %d, got %d", p.dim, len(embedding))
 	}
 
 	return embedding, nil
