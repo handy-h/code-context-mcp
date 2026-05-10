@@ -153,9 +153,13 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 
 		log.Printf("code_search: query=%q, top_k=%d", query, topK)
 
+		// 创建超时context
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
 		// 过期检测，触发后台增量更新
 		if indexMgr != nil {
-			indexMgr.TriggerUpdateIfStale(context.Background())
+			indexMgr.TriggerUpdateIfStale(ctx)
 		}
 
 		// 1. 获取查询向量
@@ -165,7 +169,6 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 		}
 
 		// 2. 向量搜索
-		ctx := context.Background()
 		vdb, err := search.NewVectorDB(ctx, cfg)
 		if err != nil {
 			return "", fmt.Errorf("连接向量数据库失败: %v", err)
@@ -237,7 +240,10 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 
 		log.Printf("index_project: path=%q", projectPath)
 
-		ctx := context.Background()
+		// 创建超时context（5分钟）
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+		defer cancel()
+
 		vdb, err := search.NewVectorDB(ctx, cfg)
 		if err != nil {
 			return "", fmt.Errorf("连接向量数据库失败: %v", err)
@@ -306,6 +312,10 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 
 		log.Printf("symbol_search: query=%q, search_type=%q, top_k=%d", query, searchType, topK)
 
+		// 创建超时context
+		_, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
 		if indexMgr == nil {
 			return "符号索引尚未构建，请先索引项目。", nil
 		}
@@ -346,6 +356,10 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 		}
 
 		newName, _ := args["new_name"].(string)
+
+		// 创建超时context
+		_, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
 		log.Printf("impact_analysis: symbol=%q, action=%q, new_name=%q", symbol, action, newName)
 

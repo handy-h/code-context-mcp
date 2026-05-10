@@ -8,7 +8,9 @@ BINARY_PATH := cmd/code-context-mcp/$(BINARY_NAME)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD)
 DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+BUILD_DATE := $(shell date '+%Y-%m-%d %H:%M:%S')
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
+DEPLOY_DIR := .
 
 help: ## Display this help message
 	@echo "Usage: make [target]"
@@ -97,6 +99,33 @@ version: ## Show version information
 dev: build ## Build and run in development mode
 	@echo "Running in development mode..."
 	@./$(BINARY_PATH) -index . || true
+
+gen-script: ## Generate start-mcp.sh from template
+	@echo "Generating start-mcp.sh..."
+	@sed -e 's/__VERSION__/$(VERSION)/g' -e 's/__BUILD_DATE__/$(BUILD_DATE)/g' start-mcp.sh.template > start-mcp.sh
+	@chmod +x start-mcp.sh
+	@echo "Generated start-mcp.sh with version $(VERSION)"
+
+deploy: build gen-script ## Build binary and deploy to directory (with start-mcp.sh)
+	@echo "Deploying to $(DEPLOY_DIR)..."
+	@mkdir -p $(DEPLOY_DIR)
+	@# Copy binary (always needed)
+	@cp $(BINARY_PATH) $(DEPLOY_DIR)/$(BINARY_NAME)
+	@# Copy script only if not already in place
+	@if [ "$(DEPLOY_DIR)" != "." ]; then \
+		cp start-mcp.sh $(DEPLOY_DIR)/start-mcp.sh; \
+		chmod +x $(DEPLOY_DIR)/start-mcp.sh; \
+	else \
+		echo "Script already in place: ./start-mcp.sh"; \
+	fi
+	@echo "Deployed:"
+	@echo "  - $(DEPLOY_DIR)/$(BINARY_NAME)"
+	@if [ "$(DEPLOY_DIR)" != "." ]; then \
+		echo "  - $(DEPLOY_DIR)/start-mcp.sh"; \
+	else \
+		echo "  - ./start-mcp.sh (already in place)"; \
+	fi
+	@echo "You can now run: cd $(DEPLOY_DIR) && ./start-mcp.sh"
 
 start-mcp: ## Start MCP server via wrapper (injects env from opencode.json)
 	@echo "Starting MCP via wrapper..."

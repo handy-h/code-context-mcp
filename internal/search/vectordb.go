@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/handy-h/code-context-mcp/internal/config"
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
@@ -26,6 +27,13 @@ type CodeSearchResult struct {
 
 // NewVectorDB 创建向量数据库连接
 func NewVectorDB(ctx context.Context, cfg config.Config) (*VectorDB, error) {
+	// 如果context没有deadline，添加30秒超时
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+	}
+
 	c, err := client.NewClient(ctx, client.Config{
 		Address: cfg.ZillizURI,
 		APIKey:  cfg.ZillizToken,

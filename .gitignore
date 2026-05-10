@@ -1,10 +1,14 @@
 # 环境变量（含敏感凭据）
 .env
+opencode.json
 
 # Go 构建产物
 code-context-mcp
 *.exe
 code_context_mc
+
+# 生成的启动脚本
+start-mcp.sh
 
 # 索引状态文件
 .code-context-index-state.json
