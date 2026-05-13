@@ -4,6 +4,7 @@ opencode.json
 
 # Go 构建产物
 code-context-mcp
+cmd/code-context-mcp/code-context-mcp
 *.exe
 code_context_mc
 

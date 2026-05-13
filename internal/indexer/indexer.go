@@ -63,23 +63,6 @@ func ScanFiles(root string, extensions []string) ([]document, error) {
 	return docs, err
 }
 
-// SplitText 按指定字符数切分文本
-func SplitText(text string, chunkSize int) []string {
-	var chunks []string
-	runes := []rune(text)
-	for i := 0; i < len(runes); i += chunkSize {
-		end := i + chunkSize
-		if end > len(runes) {
-			end = len(runes)
-		}
-		chunk := string(runes[i:end])
-		if len(strings.TrimSpace(chunk)) >= 10 {
-			chunks = append(chunks, chunk)
-		}
-	}
-	return chunks
-}
-
 // BuildIndex 构建项目代码索引：扫描 → 切分 → 向量化 → 插入
 func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb *search.VectorDB, invIndex *search.InvertedIndex) (*IndexStats, error) {
 	// 1. 扫描文件
