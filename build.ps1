@@ -1,15 +1,18 @@
-# ============================================================================
-# build.ps1 — Windows PowerShell 构建脚本
-# 功能：编译 Windows 二进制并部署到 code-text/ 目录
+﻿# ============================================================================
+# build.ps1 鈥?Windows PowerShell 鏋勫缓鑴氭湰
+# 鍔熻兘锛氱紪璇?Windows 浜岃繘鍒跺苟閮ㄧ讲鍒?code-text/ 鐩綍
 #
-# 用法：
-#   .\build.ps1                  # 构建并部署到 code-text/
-#   .\build.ps1 -Clean           # 清理后构建
-#   .\build.ps1 -Test            # 运行测试
-#   .\build.ps1 -Lint            # 运行 golangci-lint
-#   .\build.ps1 -Vet             # 运行 go vet
-#   .\build.ps1 -Fmt             # 格式化代码
+# 鐢ㄦ硶锛?
+#   .\build.ps1                  # 鏋勫缓骞堕儴缃插埌 code-text/
+#   .\build.ps1 -Clean           # 娓呯悊鍚庢瀯寤?
+#   .\build.ps1 -Test            # 杩愯娴嬭瘯
+#   .\build.ps1 -Lint            # 杩愯 golangci-lint
+#   .\build.ps1 -Vet             # 杩愯 go vet
+#   .\build.ps1 -Fmt             # 鏍煎紡鍖栦唬鐮?
 # ============================================================================
+
+# 纭繚鎺у埗鍙颁互 UTF-8 杈撳嚭涓枃锛岄伩鍏嶄贡鐮?
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
 
 param(
     [switch] $Clean,
@@ -22,12 +25,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# ---- 变量 ------------------------------------------------------------------
+# ---- 鍙橀噺 ------------------------------------------------------------------
 $BinaryName = "code-context-mcp"
 $BinaryExe  = "$BinaryName.exe"
 $DeployDir  = "code-text"
 
-# 版本信息
+# 鐗堟湰淇℃伅
 try {
     $Version = (git describe --tags --always --dirty 2>$null) -replace "`n|`r", ""
     if (-not $Version) { $Version = "dev" }
@@ -42,23 +45,23 @@ try {
 
 $LdFlags = "-s -w -X main.version=$Version -X main.commit=$Commit -X main.date=$Date"
 
-# ---- 颜色输出 ---------------------------------------------------------------
+# ---- 棰滆壊杈撳嚭 ---------------------------------------------------------------
 function Write-Info  { Write-Host "[INFO]  $args" -ForegroundColor Green }
 function Write-Warn  { Write-Host "[WARN]  $args" -ForegroundColor Yellow }
 function Write-ErrorMsg { Write-Host "[ERROR] $args" -ForegroundColor Red }
 
-# ---- 帮助 -------------------------------------------------------------------
+# ---- 甯姪 -------------------------------------------------------------------
 function Show-Help {
     Write-Host "Usage: .\build.ps1 [options]"
     Write-Host ""
     Write-Host "Options:"
-    Write-Host "  (none)    构建并部署到 $DeployDir\"
-    Write-Host "  -Clean    清理构建产物后重新构建"
-    Write-Host "  -Test     运行测试"
-    Write-Host "  -Lint     运行 golangci-lint"
-    Write-Host "  -Vet      运行 go vet"
-    Write-Host "  -Fmt      格式化代码"
-    Write-Host "  -Help     显示此帮助"
+    Write-Host "  (none)    鏋勫缓骞堕儴缃插埌 $DeployDir\"
+    Write-Host "  -Clean    娓呯悊鏋勫缓浜х墿鍚庨噸鏂版瀯寤?
+    Write-Host "  -Test     杩愯娴嬭瘯"
+    Write-Host "  -Lint     杩愯 golangci-lint"
+    Write-Host "  -Vet      杩愯 go vet"
+    Write-Host "  -Fmt      鏍煎紡鍖栦唬鐮?
+    Write-Host "  -Help     鏄剧ず姝ゅ府鍔?
 }
 
 if ($Help) {
@@ -66,67 +69,67 @@ if ($Help) {
     exit 0
 }
 
-# ---- 清理 -------------------------------------------------------------------
+# ---- 娓呯悊 -------------------------------------------------------------------
 function Invoke-Clean {
-    Write-Info "清理构建产物..."
+    Write-Info "娓呯悊鏋勫缓浜х墿..."
     Remove-Item -Path $BinaryExe, "cmd/$BinaryName/$BinaryExe" -ErrorAction SilentlyContinue
     Remove-Item -Path "coverage.out", "coverage.html" -ErrorAction SilentlyContinue
     Remove-Item -Path $DeployDir -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Info "清理完成"
+    Write-Info "娓呯悊瀹屾垚"
 }
 
-# ---- 测试 -------------------------------------------------------------------
+# ---- 娴嬭瘯 -------------------------------------------------------------------
 function Invoke-Test {
-    Write-Info "运行测试..."
+    Write-Info "杩愯娴嬭瘯..."
     go test -v -race -coverprofile=coverage.out ./...
-    if ($LASTEXITCODE -ne 0) { throw "测试失败" }
-    Write-Info "测试通过"
+    if ($LASTEXITCODE -ne 0) { throw "娴嬭瘯澶辫触" }
+    Write-Info "娴嬭瘯閫氳繃"
 }
 
 # ---- Lint -------------------------------------------------------------------
 function Invoke-Lint {
-    Write-Info "运行 golangci-lint..."
+    Write-Info "杩愯 golangci-lint..."
     if (-not (Get-Command "golangci-lint" -ErrorAction SilentlyContinue)) {
-        Write-Info "安装 golangci-lint..."
+        Write-Info "瀹夎 golangci-lint..."
         go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
     }
     golangci-lint run ./...
-    if ($LASTEXITCODE -ne 0) { throw "Lint 检测到问题" }
-    Write-Info "Lint 通过"
+    if ($LASTEXITCODE -ne 0) { throw "Lint 妫€娴嬪埌闂" }
+    Write-Info "Lint 閫氳繃"
 }
 
 # ---- Vet --------------------------------------------------------------------
 function Invoke-Vet {
-    Write-Info "运行 go vet..."
+    Write-Info "杩愯 go vet..."
     go vet ./...
-    if ($LASTEXITCODE -ne 0) { throw "go vet 检测到问题" }
-    Write-Info "go vet 通过"
+    if ($LASTEXITCODE -ne 0) { throw "go vet 妫€娴嬪埌闂" }
+    Write-Info "go vet 閫氳繃"
 }
 
 # ---- Fmt --------------------------------------------------------------------
 function Invoke-Fmt {
-    Write-Info "格式化代码..."
+    Write-Info "鏍煎紡鍖栦唬鐮?.."
     go fmt ./...
-    Write-Info "格式化完成"
+    Write-Info "鏍煎紡鍖栧畬鎴?
 }
 
-# ---- 构建 -------------------------------------------------------------------
+# ---- 鏋勫缓 -------------------------------------------------------------------
 function Invoke-Build {
-    Write-Info "构建 $BinaryExe..."
-    Write-Info "  版本: $Version"
+    Write-Info "鏋勫缓 $BinaryExe..."
+    Write-Info "  鐗堟湰: $Version"
     Write-Info "  Commit: $Commit"
-    Write-Info "  构建日期: $Date"
+    Write-Info "  鏋勫缓鏃ユ湡: $Date"
 
     $env:CGO_ENABLED = "0"
     go build -v -trimpath -ldflags="$LdFlags" -o "$BinaryExe" ./cmd/code-context-mcp
-    if ($LASTEXITCODE -ne 0) { throw "构建失败" }
+    if ($LASTEXITCODE -ne 0) { throw "鏋勫缓澶辫触" }
 
-    Write-Info "构建成功: $BinaryExe"
+    Write-Info "鏋勫缓鎴愬姛: $BinaryExe"
 }
 
-# ---- 部署 -------------------------------------------------------------------
+# ---- 閮ㄧ讲 -------------------------------------------------------------------
 function Invoke-Deploy {
-    Write-Info "部署到 $DeployDir\..."
+    Write-Info "閮ㄧ讲鍒?$DeployDir\..."
 
     if (-not (Test-Path $DeployDir)) {
         New-Item -ItemType Directory -Path $DeployDir | Out-Null
@@ -135,7 +138,7 @@ function Invoke-Deploy {
     Copy-Item -Path $BinaryExe -Destination "$DeployDir\$BinaryExe" -Force
     Write-Info "  - $DeployDir\$BinaryExe"
 
-    # 生成版本占位替换后的 start-mcp.sh
+    # 鐢熸垚鐗堟湰鍗犱綅鏇挎崲鍚庣殑 start-mcp.sh
     $templatePath = "start-mcp.sh.template"
     if (Test-Path $templatePath) {
         $template = Get-Content $templatePath -Raw
@@ -146,10 +149,10 @@ function Invoke-Deploy {
         Write-Info "  - $DeployDir\start-mcp.sh"
     }
 
-    Write-Info "部署完成"
+    Write-Info "閮ㄧ讲瀹屾垚"
 }
 
-# ---- 主流程 -----------------------------------------------------------------
+# ---- 涓绘祦绋?-----------------------------------------------------------------
 try {
     if ($Clean) {
         Invoke-Clean
@@ -164,13 +167,13 @@ try {
     } elseif ($Fmt) {
         Invoke-Fmt
     } else {
-        # 默认：构建 + 部署
+        # 榛樿锛氭瀯寤?+ 閮ㄧ讲
         Invoke-Build
         Invoke-Deploy
         Write-Info ""
-        Write-Info "构建和部署完成!"
-        Write-Info "输出目录: $DeployDir\"
-        Write-Info "可执行文件: $DeployDir\$BinaryExe"
+        Write-Info "鏋勫缓鍜岄儴缃插畬鎴?"
+        Write-Info "杈撳嚭鐩綍: $DeployDir\"
+        Write-Info "鍙墽琛屾枃浠? $DeployDir\$BinaryExe"
     }
 } catch {
     Write-ErrorMsg $_.Exception.Message
