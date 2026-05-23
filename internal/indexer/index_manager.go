@@ -3,7 +3,7 @@ package indexer
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,7 +11,6 @@ import (
 	"github.com/handy-h/code-context-mcp/internal/config"
 	"github.com/handy-h/code-context-mcp/internal/embedding"
 	"github.com/handy-h/code-context-mcp/internal/search"
-	"github.com/handy-h/code-context-mcp/internal/types"
 	"github.com/handy-h/code-context-mcp/pkg/structure"
 )
 
@@ -41,7 +40,7 @@ func NewIndexManager(cfg config.Config, projectPath string) *IndexManager {
 // CheckAndAutoIndex 启动时检查索引状态并自动索引
 func (mgr *IndexManager) CheckAndAutoIndex(ctx context.Context) error {
 	if !mgr.cfg.AutoIndex {
-		log.Println("自动索引已禁用")
+		slog.Info("自动索引已禁用")
 		return nil
 	}
 
@@ -52,14 +51,14 @@ func (mgr *IndexManager) CheckAndAutoIndex(ctx context.Context) error {
 			return err
 		}
 		// 状态文件不存在或损坏，触发全量构建
-		log.Println("索引状态不存在或已损坏，开始全量索引构建...")
+		slog.Info("索引状态不存在或已损坏，开始全量构建")
 		return mgr.fullBuild(ctx)
 	}
 
 	// 比对指纹
 	currentFingerprint, _, fpErr := mgr.stateStore.GetCurrentFingerprint(mgr.projectPath, mgr.cfg.ScanExtensions)
 	if fpErr != nil {
-		log.Printf("计算索引指纹失败: %v，标记索引为过期", fpErr)
+		slog.Warn("计算索引指纹失败，标记索引为过期", "err", fpErr)
 		mgr.mu.Lock()
 		mgr.stale = true
 		mgr.mu.Unlock()
@@ -67,7 +66,7 @@ func (mgr *IndexManager) CheckAndAutoIndex(ctx context.Context) error {
 	}
 
 	if currentFingerprint == state.Fingerprint {
-		log.Println("索引状态有效，无需重建")
+		slog.Info("索引状态有效，无需重建")
 		mgr.mu.Lock()
 		mgr.stale = false
 		mgr.mu.Unlock()
@@ -78,10 +77,10 @@ func (mgr *IndexManager) CheckAndAutoIndex(ctx context.Context) error {
 
 	// 指纹不匹配（有新提交或文件变更），走增量更新而非全量重建
 	// fullBuild 会删除整个向量库再重建，对活跃项目代价过高
-	log.Println("索引已过期（指纹不匹配），开始增量更新...")
+	slog.Info("索引已过期（指纹不匹配），开始增量更新")
 	go mgr.rebuildInvertedIndex(ctx)
 	if err := mgr.incrementalUpdate(ctx); err != nil {
-		log.Printf("增量更新失败（%v），回退到全量重建...", err)
+		slog.Warn("增量更新失败，回退到全量重建", "err", err)
 		return mgr.fullBuild(ctx)
 	}
 	mgr.mu.Lock()
@@ -104,24 +103,15 @@ func (mgr *IndexManager) fullBuild(ctx context.Context) error {
 	}
 
 	// 保存索引状态
-	currentFingerprint, currentMtimes, _ := mgr.stateStore.GetCurrentFingerprint(mgr.projectPath, mgr.cfg.ScanExtensions)
-	state := &types.IndexState{
-		LastIndexedAt: time.Now(),
-		Fingerprint:   currentFingerprint,
-		TotalFiles:    stats.TotalFiles,
-		TotalChunks:   stats.TotalChunks,
-		ProjectPath:   mgr.projectPath,
-		FileMtimes:    currentMtimes,
-	}
-	if saveErr := mgr.stateStore.Save(state); saveErr != nil {
-		log.Printf("保存索引状态失败: %v", saveErr)
+	if saveErr := mgr.stateStore.SaveFromStats(mgr.projectPath, stats, mgr.cfg.ScanExtensions); saveErr != nil {
+		slog.Warn("保存索引状态失败", "err", saveErr)
 	}
 
 	mgr.mu.Lock()
 	mgr.stale = false
 	mgr.mu.Unlock()
 
-	log.Printf("全量索引完成: %d 文件, %d 片段", stats.TotalFiles, stats.TotalChunks)
+	slog.Info("全量索引完成", "files", stats.TotalFiles, "chunks", stats.TotalChunks)
 	return nil
 }
 
@@ -139,9 +129,9 @@ func (mgr *IndexManager) TriggerUpdateIfStale(ctx context.Context) {
 	go func() {
 		defer mgr.updating.Store(false)
 
-		log.Println("检测到索引过期，开始后台增量更新...")
+		slog.Info("检测到索引过期，开始后台增量更新")
 		if err := mgr.incrementalUpdate(ctx); err != nil {
-			log.Printf("增量更新失败: %v", err)
+			slog.Error("增量更新失败", "err", err)
 			// 保持 stale=true，下次搜索时重试
 			return
 		}
@@ -149,7 +139,7 @@ func (mgr *IndexManager) TriggerUpdateIfStale(ctx context.Context) {
 		mgr.mu.Lock()
 		mgr.stale = false
 		mgr.mu.Unlock()
-		log.Println("增量更新完成")
+		slog.Info("增量更新完成")
 	}()
 }
 
@@ -170,7 +160,7 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 	state, err := mgr.stateStore.Load()
 	if err != nil {
 		// 状态文件丢失，全量重建
-		log.Println("增量更新: 状态文件丢失，转为全量构建")
+		slog.Info("增量更新：状态文件丢失，转为全量构建")
 		return mgr.fullBuild(ctx)
 	}
 
@@ -196,11 +186,11 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 	}
 
 	if len(changedFiles) == 0 {
-		log.Println("增量更新: 无变更文件")
+		slog.Info("增量更新：无变更文件")
 		return nil
 	}
 
-	log.Printf("增量更新: %d 个文件变更", len(changedFiles))
+	slog.Info("增量更新", "changed", len(changedFiles))
 
 	vdb, err := search.NewVectorDB(ctx, mgr.cfg)
 	if err != nil {
@@ -216,7 +206,7 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 	// 删除变更文件的旧向量
 	for _, filePath := range changedFiles {
 		if err := vdb.DeleteByFile(ctx, filePath); err != nil {
-			log.Printf("删除文件 %s 的旧向量失败: %v", filePath, err)
+			slog.Warn("删除旧向量失败", "file", filePath, "err", err)
 		}
 		mgr.invIndex.RemoveFile(filePath)
 	}
@@ -256,7 +246,7 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 		for _, chunk := range chunks {
 			vector, err := embedding.GetEmbedding(mgr.cfg, chunk.Content)
 			if err != nil {
-				log.Printf("向量化失败 [%s]: %v", doc.FilePath, err)
+				slog.Warn("向量化失败", "file", doc.FilePath, "err", err)
 				continue
 			}
 
@@ -270,24 +260,19 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 
 	// 批量插入新向量
 	if len(allVectors) > 0 {
-		log.Printf("增量插入 %d 条向量...", len(allVectors))
+		slog.Info("增量插入向量", "count", len(allVectors))
 		if err := vdb.Insert(ctx, allIDs, allTexts, allVectors, allMetadatas); err != nil {
 			return err
 		}
 	}
 
-	// 更新索引状态
-	currentFingerprint, _, _ := mgr.stateStore.GetCurrentFingerprint(mgr.projectPath, mgr.cfg.ScanExtensions)
-	newState := &types.IndexState{
-		LastIndexedAt: time.Now(),
-		Fingerprint:   currentFingerprint,
-		TotalFiles:    state.TotalFiles,
-		TotalChunks:   state.TotalChunks - len(changedFiles) + chunkIdx,
-		ProjectPath:   mgr.projectPath,
-		FileMtimes:    currentMtimes,
+	// 更新索引状态（增量更新的 chunk 数不同于全量构建）
+	stats := &IndexStats{
+		TotalFiles:  len(currentMtimes),
+		TotalChunks: state.TotalChunks - len(changedFiles) + chunkIdx,
 	}
-	if saveErr := mgr.stateStore.Save(newState); saveErr != nil {
-		log.Printf("保存索引状态失败: %v", saveErr)
+	if saveErr := mgr.stateStore.SaveFromStats(mgr.projectPath, stats, mgr.cfg.ScanExtensions); saveErr != nil {
+		slog.Warn("保存索引状态失败", "err", saveErr)
 	}
 
 	return nil
@@ -295,10 +280,10 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 
 // rebuildInvertedIndex 重建内存倒排索引（服务重启后向量索引仍在，但倒排索引丢失）
 func (mgr *IndexManager) rebuildInvertedIndex(ctx context.Context) {
-	log.Println("重建倒排索引...")
+	slog.Info("重建倒排索引")
 	docs, err := ScanFiles(mgr.projectPath, mgr.cfg.ScanExtensions)
 	if err != nil {
-		log.Printf("扫描文件失败: %v", err)
+		slog.Error("扫描文件失败", "err", err)
 		return
 	}
 
@@ -308,5 +293,5 @@ func (mgr *IndexManager) rebuildInvertedIndex(ctx context.Context) {
 		mgr.invIndex.BuildFromChunks(chunks, doc.FilePath)
 	}
 
-	log.Printf("倒排索引重建完成: %d 个符号", mgr.invIndex.Size())
+	slog.Info("倒排索引重建完成", "symbols", mgr.invIndex.Size())
 }

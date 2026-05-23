@@ -79,3 +79,16 @@ AI 工具 → stdio JSON-RPC → server.go → tools.go
 
 - `local` / `local-jsonl` / `jsonl` → `LocalJSONLStore`（默认，索引文件路径由 `VECTOR_STORE_PATH` 指定）
 - `zilliz` → `VectorDB`（需要 `ZILLIZ_URI` + `ZILLIZ_TOKEN`）
+
+## 配置系统使用规则
+
+> ⚠️ **核心约束**：`config.Config` 是一个包含 25 个字段的全局配置结构，在不同子系统中实际用到的字段不同。
+> **在修改任何功能之前，请先阅读 `docs/config-dependency-map.md`**，确认你只修改了目标子系统依赖的配置字段。
+
+### 规则清单
+
+1. **嵌入模型相关字段**（EmbeddingProvider, Ollama*, OpenAI*, Gemini*, EmbeddingDim）→ 只能在 `internal/embedding/` 中使用
+2. **向量存储相关字段**（VectorStore*, Zilliz*, CollectionName, EmbeddingDim）→ 只能在 `internal/search/` 中使用
+3. **索引相关字段**（ScanExtensions, MaxChunkSize, AutoIndex, ProjectPath, IndexStatePath）→ 只能在 `internal/indexer/` 中使用
+4. **超时字段**（SearchTimeout, IndexTimeout）→ 只能在 `internal/tools/tools.go` 中使用
+5. **新增配置项时**，明确该配置属于哪个子系统，不要放在全局 Config 中，除非所有子系统都需要它

@@ -21,17 +21,19 @@ type EmbeddingProvider interface {
 
 // OllamaProvider Ollama 嵌入模型提供者
 type OllamaProvider struct {
-	url   string
-	model string
-	dim   int
+	url    string
+	model  string
+	dim    int
+	client *http.Client
 }
 
 // NewOllamaProvider 创建 Ollama 提供者
 func NewOllamaProvider(url, model string, dim int) *OllamaProvider {
 	return &OllamaProvider{
-		url:   strings.TrimSuffix(url, "/"),
-		model: model,
-		dim:   dim,
+		url:    strings.TrimSuffix(url, "/"),
+		model:  model,
+		dim:    dim,
+		client: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -55,8 +57,7 @@ func (p *OllamaProvider) GetEmbedding(text string) ([]float32, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("ollama request failed (please confirm Ollama is running): %v", err)
 	}
@@ -94,6 +95,7 @@ type OpenAIProvider struct {
 	model   string
 	apiKey  string
 	dim     int
+	client  *http.Client
 }
 
 // NewOpenAIProvider 创建 OpenAI 提供者
@@ -103,6 +105,7 @@ func NewOpenAIProvider(baseURL, model, apiKey string, dim int) *OpenAIProvider {
 		model:   model,
 		apiKey:  apiKey,
 		dim:     dim,
+		client:  &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -153,8 +156,7 @@ func (p *OpenAIProvider) GetEmbedding(text string) ([]float32, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API request failed: %v", err)
 	}
@@ -192,6 +194,7 @@ type GeminiProvider struct {
 	model   string
 	apiKey  string
 	dim     int
+	client  *http.Client
 }
 
 // NewGeminiProvider 创建 Gemini 提供者
@@ -201,6 +204,7 @@ func NewGeminiProvider(baseURL, model, apiKey string, dim int) *GeminiProvider {
 		model:   model,
 		apiKey:  apiKey,
 		dim:     dim,
+		client:  &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -267,8 +271,7 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("Gemini API request failed: %v", err)
 	}

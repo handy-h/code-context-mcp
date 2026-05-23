@@ -1,6 +1,7 @@
 package search
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -11,7 +12,39 @@ import (
 
 var identifierRe = regexp.MustCompile(`[a-zA-Z_][a-zA-Z0-9_]*`)
 
-// InvertedIndex 内存倒排索引
+var keywords = map[string]bool{
+	// Go
+	"func": true, "var": true, "const": true, "type": true, "struct": true,
+	"interface": true, "package": true, "import": true, "return": true,
+	"if": true, "else": true, "for": true, "range": true, "switch": true,
+	"case": true, "default": true, "break": true, "continue": true,
+	"go": true, "defer": true, "chan": true, "map": true, "nil": true,
+	"true": true, "false": true, "string": true, "int": true, "error": true,
+	"bool": true, "byte": true, "float64": true, "make": true, "new": true,
+	"len": true, "cap": true, "append": true, "fmt": true, "ctx": true,
+	// JS/TS
+	"function": true, "class": true, "export": true,
+	"let": true, "async": true, "await": true, "from": true,
+	"null": true, "undefined": true, "this": true, "throw": true,
+	"try": true, "catch": true, "finally": true, "typeof": true,
+	"instanceof": true, "void": true, "delete": true, "yield": true,
+	// Python
+	"def": true, "self": true, "None": true, "True": true, "False": true,
+	"print": true, "raise": true, "with": true, "as": true, "lambda": true,
+	// Common
+	"get": true, "set": true, "not": true, "and": true, "or": true,
+	"do": true, "end": true, "then": true, "when": true, "is": true,
+	"has": true, "can": true, "use": true,
+}
+
+// InvertedIndex 符号倒排索引。
+//
+// 构建规则（见 BuildFromChunks）：
+//   - 每个 CodeChunk 的 Metadata["symbol"] 标识该块的"所属符号"（函数名、类型名等）
+//   - 块内出现的标识符若等于 chunkSymbol → 标记为 definition
+//   - 块内出现的其他标识符 → 标记为 reference
+//
+// 搜索支持驼峰/下划线自动转换：DiagnosisNotes ↔ diagnosis_notes
 type InvertedIndex struct {
 	mu        sync.RWMutex
 	index     map[string][]types.SymbolOccurrence // 符号名 → 出现位置列表
@@ -106,7 +139,7 @@ func (ii *InvertedIndex) Search(query string, searchType string, topK int) []typ
 			continue
 		}
 		for _, occ := range occurrences {
-			key := occ.File + ":" + string(rune(occ.Line)) + ":" + occ.Symbol
+			key := fmt.Sprintf("%s:%d:%s", occ.File, occ.Line, occ.Symbol)
 			if seen[key] {
 				continue
 			}
@@ -155,7 +188,7 @@ func (ii *InvertedIndex) GetAllOccurrences(symbol string) []types.SymbolOccurren
 			continue
 		}
 		for _, occ := range occurrences {
-			key := occ.File + ":" + string(rune(occ.Line)) + ":" + occ.Symbol
+			key := fmt.Sprintf("%s:%d:%s", occ.File, occ.Line, occ.Symbol)
 			if seen[key] {
 				continue
 			}
@@ -273,29 +306,5 @@ func extractContext(lines []string, targetIdx int, n int) string {
 
 // isKeyword 检查是否为常见关键字（应跳过不索引）
 func isKeyword(id string) bool {
-	keywords := map[string]bool{
-		// Go
-		"func": true, "var": true, "const": true, "type": true, "struct": true,
-		"interface": true, "package": true, "import": true, "return": true,
-		"if": true, "else": true, "for": true, "range": true, "switch": true,
-		"case": true, "default": true, "break": true, "continue": true,
-		"go": true, "defer": true, "chan": true, "map": true, "nil": true,
-		"true": true, "false": true, "string": true, "int": true, "error": true,
-		"bool": true, "byte": true, "float64": true, "make": true, "new": true,
-		"len": true, "cap": true, "append": true, "fmt": true, "ctx": true,
-		// JS/TS
-		"function": true, "class": true, "export": true,
-		"let": true, "async": true, "await": true, "from": true,
-		"null": true, "undefined": true, "this": true, "throw": true,
-		"try": true, "catch": true, "finally": true, "typeof": true,
-		"instanceof": true, "void": true, "delete": true, "yield": true,
-		// Python
-		"def": true, "self": true, "None": true, "True": true, "False": true,
-		"print": true, "raise": true, "with": true, "as": true, "lambda": true,
-		// Common
-		"get": true, "set": true, "not": true, "and": true, "or": true,
-		"do": true, "end": true, "then": true, "when": true, "is": true,
-		"has": true, "can": true, "use": true,
-	}
 	return keywords[id]
 }

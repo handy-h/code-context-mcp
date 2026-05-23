@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/handy-h/code-context-mcp/internal/config"
 	"github.com/handy-h/code-context-mcp/internal/embedding"
@@ -19,35 +18,49 @@ import (
 	"github.com/handy-h/code-context-mcp/pkg/structure"
 )
 
+// parseIntArg 从参数 map 中解析整数，兼容 float64/json.Number/string 三种来源
+func parseIntArg(args map[string]interface{}, key string, defaultVal int) int {
+	v, ok := args[key]
+	if !ok {
+		return defaultVal
+	}
+	switch tv := v.(type) {
+	case float64:
+		return int(tv)
+	case json.Number:
+		if n, err := tv.Int64(); err == nil {
+			return int(n)
+		}
+	case string:
+		if n, err := strconv.Atoi(tv); err == nil {
+			return n
+		}
+	}
+	return defaultVal
+}
+
 // RegisterTools 注册所有工具处理器
 func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.IndexManager) {
-	// code_search: 语义搜索代码
-	srv.RegisterTool("code_search", func(args map[string]interface{}) (string, error) {
+	srv.RegisterTool("code_search", handleCodeSearch(cfg, indexMgr))
+	srv.RegisterTool("file_context", handleFileContext())
+	srv.RegisterTool("index_project", handleIndexProject(cfg, indexMgr))
+	srv.RegisterTool("symbol_search", handleSymbolSearch(indexMgr))
+	srv.RegisterTool("impact_analysis", handleImpactAnalysis(indexMgr))
+}
+
+// handleCodeSearch 语义搜索代码
+func handleCodeSearch(cfg config.Config, indexMgr *indexer.IndexManager) server.ToolHandler {
+	return func(args map[string]interface{}) (string, error) {
 		query, _ := args["query"].(string)
 		if query == "" {
 			return "", fmt.Errorf("query 参数不能为空")
 		}
 
-		topK := 5
-		if tk, ok := args["top_k"]; ok {
-			switch v := tk.(type) {
-			case float64:
-				topK = int(v)
-			case json.Number:
-				if n, err := v.Int64(); err == nil {
-					topK = int(n)
-				}
-			case string:
-				if n, err := strconv.Atoi(v); err == nil {
-					topK = n
-				}
-			}
-		}
+		topK := parseIntArg(args, "top_k", 5)
 
-		log.Printf("code_search: query=%q, top_k=%d", query, topK)
+		slog.Info("code_search", "query", query, "top_k", topK)
 
-		// 创建超时context
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.SearchTimeout)
 		defer cancel()
 
 		// 过期检测，触发后台增量更新
@@ -90,10 +103,12 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 			output += text + "\n\n"
 		}
 		return output, nil
-	})
+	}
+}
 
-	// file_context: 获取文件完整内容或结构摘要
-	srv.RegisterTool("file_context", func(args map[string]interface{}) (string, error) {
+// handleFileContext 获取文件完整内容或结构摘要
+func handleFileContext() server.ToolHandler {
+	return func(args map[string]interface{}) (string, error) {
 		filePath, _ := args["file_path"].(string)
 		if filePath == "" {
 			return "", fmt.Errorf("file_path 参数不能为空")
@@ -104,7 +119,7 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 			mode = m
 		}
 
-		log.Printf("file_context: path=%q, mode=%q", filePath, mode)
+		slog.Info("file_context", "path", filePath, "mode", mode)
 
 		content, err := os.ReadFile(filePath)
 		if err != nil {
@@ -122,19 +137,20 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 		}
 
 		return string(content), nil
-	})
+	}
+}
 
-	// index_project: 索引项目
-	srv.RegisterTool("index_project", func(args map[string]interface{}) (string, error) {
+// handleIndexProject 索引项目
+func handleIndexProject(cfg config.Config, indexMgr *indexer.IndexManager) server.ToolHandler {
+	return func(args map[string]interface{}) (string, error) {
 		projectPath, _ := args["path"].(string)
 		if projectPath == "" {
 			return "", fmt.Errorf("path 参数不能为空")
 		}
 
-		log.Printf("index_project: path=%q", projectPath)
+		slog.Info("index_project", "path", projectPath)
 
-		// 创建超时context（5分钟）
-		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.IndexTimeout)
 		defer cancel()
 
 		vdb, err := search.NewVectorDB(ctx, cfg)
@@ -158,25 +174,18 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 		// 保存索引状态
 		if indexMgr != nil {
 			stateStore := indexer.NewIndexStateStore(projectPath, cfg.IndexStatePath)
-			currentFingerprint, currentMtimes, _ := stateStore.GetCurrentFingerprint(projectPath, cfg.ScanExtensions)
-			state := &types.IndexState{
-				LastIndexedAt: time.Now(),
-				Fingerprint:   currentFingerprint,
-				TotalFiles:    stats.TotalFiles,
-				TotalChunks:   stats.TotalChunks,
-				ProjectPath:   projectPath,
-				FileMtimes:    currentMtimes,
-			}
-			if saveErr := stateStore.Save(state); saveErr != nil {
-				log.Printf("保存索引状态失败: %v", saveErr)
+			if saveErr := stateStore.SaveFromStats(projectPath, stats, cfg.ScanExtensions); saveErr != nil {
+				slog.Warn("保存索引状态失败", "err", saveErr)
 			}
 		}
 
 		return fmt.Sprintf("索引构建完成！共扫描 %d 个文件，生成 %d 个代码片段。", stats.TotalFiles, stats.TotalChunks), nil
-	})
+	}
+}
 
-	// symbol_search: 精确符号搜索
-	srv.RegisterTool("symbol_search", func(args map[string]interface{}) (string, error) {
+// handleSymbolSearch 精确符号搜索
+func handleSymbolSearch(indexMgr *indexer.IndexManager) server.ToolHandler {
+	return func(args map[string]interface{}) (string, error) {
 		query, _ := args["query"].(string)
 		if query == "" {
 			return "", fmt.Errorf("query 参数不能为空")
@@ -187,27 +196,9 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 			searchType = st
 		}
 
-		topK := 20
-		if tk, ok := args["top_k"]; ok {
-			switch v := tk.(type) {
-			case float64:
-				topK = int(v)
-			case json.Number:
-				if n, err := v.Int64(); err == nil {
-					topK = int(n)
-				}
-			case string:
-				if n, err := strconv.Atoi(v); err == nil {
-					topK = n
-				}
-			}
-		}
+		topK := parseIntArg(args, "top_k", 20)
 
-		log.Printf("symbol_search: query=%q, search_type=%q, top_k=%d", query, searchType, topK)
-
-		// 创建超时context
-		_, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+		slog.Info("symbol_search", "query", query, "type", searchType, "top_k", topK)
 
 		if indexMgr == nil {
 			return "符号索引尚未构建，请先索引项目。", nil
@@ -234,10 +225,12 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 			output += fmt.Sprintf("  L%d: [%s] %s\n", r.Line, r.Type, r.Context)
 		}
 		return output, nil
-	})
+	}
+}
 
-	// impact_analysis: 影响分析
-	srv.RegisterTool("impact_analysis", func(args map[string]interface{}) (string, error) {
+// handleImpactAnalysis 影响范围分析
+func handleImpactAnalysis(indexMgr *indexer.IndexManager) server.ToolHandler {
+	return func(args map[string]interface{}) (string, error) {
 		symbol, _ := args["symbol"].(string)
 		if symbol == "" {
 			return "", fmt.Errorf("symbol 参数不能为空")
@@ -250,11 +243,7 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 
 		newName, _ := args["new_name"].(string)
 
-		// 创建超时context
-		_, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		log.Printf("impact_analysis: symbol=%q, action=%q, new_name=%q", symbol, action, newName)
+		slog.Info("impact_analysis", "symbol", symbol, "action", action, "new_name", newName)
 
 		if action == "rename" && newName == "" {
 			return "", fmt.Errorf("action 为 rename 时必须提供 new_name 参数")
@@ -308,7 +297,7 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 			return "", fmt.Errorf("格式化影响分析结果失败: %v", err)
 		}
 		return string(data), nil
-	})
+	}
 }
 
 // generateSuggestion 根据操作类型生成修改建议

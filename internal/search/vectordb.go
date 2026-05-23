@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/handy-h/code-context-mcp/internal/config"
@@ -12,28 +13,10 @@ import (
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 )
 
-// VectorStore is the storage backend used by indexing and semantic search.
-type VectorStore interface {
-	DropCollection(ctx context.Context) error
-	Close()
-	HasCollection(ctx context.Context) (bool, error)
-	DeleteByFile(ctx context.Context, filePath string) error
-	EnsureCollection(ctx context.Context) error
-	Insert(ctx context.Context, ids []string, texts []string, vectors [][]float32, metadatas []map[string]interface{}) error
-	Search(ctx context.Context, queryVector []float32, topK int) ([]CodeSearchResult, error)
-}
-
 // VectorDB wraps a Zilliz Cloud vector database client.
 type VectorDB struct {
 	client client.Client
 	cfg    config.Config
-}
-
-// CodeSearchResult describes a semantic search result.
-type CodeSearchResult struct {
-	File  string  `json:"file"`
-	Text  string  `json:"text"`
-	Score float32 `json:"score"`
 }
 
 // NewVectorDB creates the configured vector store backend.
@@ -88,7 +71,7 @@ func (v *VectorDB) DeleteByFile(ctx context.Context, filePath string) error {
 		return nil
 	}
 
-	expr := fmt.Sprintf(`metadata["file"] == "%s"`, filePath)
+	expr := fmt.Sprintf(`metadata["file"] == "%s"`, strings.ReplaceAll(filePath, `"`, `\"`))
 	if err := v.client.Delete(ctx, v.cfg.CollectionName, "", expr); err != nil {
 		return fmt.Errorf("按文件删除向量失败: %v", err)
 	}
@@ -105,7 +88,7 @@ func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 		return nil
 	}
 
-	log.Printf("创建集合 %s (dim=%d)...", v.cfg.CollectionName, v.cfg.EmbeddingDim)
+	slog.Info("创建集合", "name", v.cfg.CollectionName, "dim", v.cfg.EmbeddingDim)
 
 	schema := entity.NewSchema().
 		WithName(v.cfg.CollectionName).
@@ -140,12 +123,15 @@ func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 		return fmt.Errorf("加载集合失败: %v", err)
 	}
 
-	log.Printf("集合 %s 创建并加载完成", v.cfg.CollectionName)
+	slog.Info("集合创建完成", "name", v.cfg.CollectionName)
 	return nil
 }
 
 // Insert inserts vectors into the collection.
 func (v *VectorDB) Insert(ctx context.Context, ids []string, texts []string, vectors [][]float32, metadatas []map[string]interface{}) error {
+	if len(vectors) > 0 && len(vectors[0]) != v.cfg.EmbeddingDim {
+		return fmt.Errorf("向量维度不匹配: 期望 %d，实际 %d", v.cfg.EmbeddingDim, len(vectors[0]))
+	}
 	metaBytes := make([][]byte, len(metadatas))
 	for i, m := range metadatas {
 		b, err := json.Marshal(m)

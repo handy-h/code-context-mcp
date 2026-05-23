@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -25,6 +25,9 @@ var (
 )
 
 func main() {
+	// 初始化结构化日志，写入 stderr（stdout 专用于 MCP JSON-RPC 通信）
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	// 加载 .env 配置文件
 	// 按优先级尝试：1.当前目录 2.可执行文件所在目录
 	godotenv.Load(".env")
@@ -63,22 +66,24 @@ func main() {
 }
 
 func runIndexMode(projectPath string, cfg config.Config) {
-	log.Printf("索引模式: 扫描项目 %s", projectPath)
+	slog.Info("索引模式", "path", projectPath)
 
 	ctx := context.Background()
 	vdb, err := search.NewVectorDB(ctx, cfg)
 	if err != nil {
-		log.Fatalf("连接向量数据库失败: %v", err)
+		slog.Error("连接向量数据库失败", "err", err)
+		os.Exit(1)
 	}
 	defer vdb.Close()
 
 	invIndex := search.NewInvertedIndex()
 	stats, err := indexer.BuildIndex(ctx, projectPath, cfg, vdb, invIndex)
 	if err != nil {
-		log.Fatalf("索引构建失败: %v", err)
+		slog.Error("索引构建失败", "err", err)
+		os.Exit(1)
 	}
 
-	log.Printf("索引完成: %d 个文件, %d 个代码片段", stats.TotalFiles, stats.TotalChunks)
+	slog.Info("索引完成", "files", stats.TotalFiles, "chunks", stats.TotalChunks)
 }
 
 func runMCPMode(cfg config.Config) {
@@ -90,7 +95,7 @@ func runMCPMode(cfg config.Config) {
 		// 避免全量构建耗时超过客户端初始化超时（通常 50s）
 		go func() {
 			if err := indexMgr.CheckAndAutoIndex(ctx); err != nil {
-				log.Printf("自动索引失败: %v（请稍后手动调用 index_project 重试）", err)
+				slog.Error("自动索引失败", "err", err)
 			}
 		}()
 	}
@@ -99,6 +104,7 @@ func runMCPMode(cfg config.Config) {
 	tools.RegisterTools(srv, cfg, indexMgr)
 
 	if err := srv.Run(); err != nil {
-		log.Fatalf("MCP 服务器错误: %v", err)
+		slog.Error("MCP 服务器错误", "err", err)
+		os.Exit(1)
 	}
 }

@@ -12,7 +12,6 @@
 # 环境变量：
 #   MCP_BINARY   指定 code-context-mcp 路径（默认：本脚本所在目录下的 code-context-mcp）
 #   CONFIG_PATH  指定 opencode.json 路径（默认：自动向上搜索）
-#   VECTOR_STORE_PATH  本地 jsonl 存储路径（默认：脚本目录下的 <collection>.jsonl）
 #
 # 自动生成于：__BUILD_DATE__
 # 版本：__VERSION__
@@ -129,12 +128,6 @@ while IFS= read -r line; do
         info "导出 $key=$value"
     fi
 done <<< "$ENV_LINES"
-
-if [[ "${VECTOR_STORE:-local}" != "zilliz" && -z "${VECTOR_STORE_PATH:-}" ]]; then
-    VECTOR_STORE_PATH="${SCRIPT_DIR}/${COLLECTION_NAME:-code_context}.jsonl"
-    export VECTOR_STORE_PATH
-    info "导出 VECTOR_STORE_PATH=$VECTOR_STORE_PATH"
-fi
 
 # ---- 校验 MCP 二进制 -------------------------------------------------------
 if [[ ! -x "$MCP_BINARY" ]]; then

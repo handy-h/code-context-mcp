@@ -23,15 +23,15 @@ func ExtractSummary(content string, lang string, filePath string) *types.FileSum
 
 	switch lang {
 	case "go":
-		extractGoSummary(content, summary)
+		summarizeGo(content, summary)
 	case "vue":
-		extractVueSummary(content, summary)
+		summarizeVue(content, summary)
 	case "js", "ts":
-		extractJSTSSummary(content, summary, lang)
+		summarizeJSTS(content, summary, lang)
 	case "md":
-		extractMarkdownSummary(content, summary)
+		summarizeMarkdown(content, summary)
 	case "py":
-		extractPythonSummary(content, summary)
+		summarizePython(content, summary)
 	default:
 		// 仅返回基本信息
 	}
@@ -49,7 +49,7 @@ var (
 	goInterfaceSummaryRe = regexp.MustCompile(`^type\s+(\w+)\s+interface`)
 )
 
-func extractGoSummary(content string, summary *types.FileSummary) {
+func summarizeGo(content string, summary *types.FileSummary) {
 	lines := strings.Split(content, "\n")
 	inImportBlock := false
 
@@ -126,11 +126,11 @@ func findGoFuncEnd(lines []string, startIdx int) int {
 
 // ================= Vue 摘要提取 =================
 
-func extractVueSummary(content string, summary *types.FileSummary) {
+func summarizeVue(content string, summary *types.FileSummary) {
 	// 提取 script 部分的摘要
 	scriptContent := structure.ExtractScriptContent(content)
 	if scriptContent != "" {
-		extractJSTSSummary(scriptContent, summary, "js")
+		summarizeJSTS(scriptContent, summary, "js")
 	}
 }
 
@@ -143,7 +143,7 @@ var (
 	jsClassSummaryRe = regexp.MustCompile(`class\s+(\w+)`)
 )
 
-func extractJSTSSummary(content string, summary *types.FileSummary, lang string) {
+func summarizeJSTS(content string, summary *types.FileSummary, lang string) {
 	lines := strings.Split(content, "\n")
 
 	for i, line := range lines {
@@ -206,7 +206,7 @@ func findJSFuncEnd(lines []string, startIdx int) int {
 
 var mdHeadingSummaryRe = regexp.MustCompile(`^(#{1,6})\s+(.+)`)
 
-func extractMarkdownSummary(content string, summary *types.FileSummary) {
+func summarizeMarkdown(content string, summary *types.FileSummary) {
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
 		if m := mdHeadingSummaryRe.FindStringSubmatch(line); m != nil {
@@ -238,7 +238,7 @@ var (
 	pyClassSummaryRe = regexp.MustCompile(`^class\s+(\w+)`)
 )
 
-func extractPythonSummary(content string, summary *types.FileSummary) {
+func summarizePython(content string, summary *types.FileSummary) {
 	lines := strings.Split(content, "\n")
 
 	for i, line := range lines {

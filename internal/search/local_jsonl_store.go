@@ -165,13 +165,15 @@ func (s *LocalJSONLStore) Search(ctx context.Context, queryVector []float32, top
 		topK = 5
 	}
 
-	records, err := s.recordsSnapshot(ctx)
-	if err != nil {
+	if err := s.ensureLoaded(ctx); err != nil {
 		return nil, err
 	}
 
-	results := make([]CodeSearchResult, 0, minInt(topK, len(records)))
-	for _, record := range records {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	results := make([]CodeSearchResult, 0, minInt(topK, len(s.records)))
+	for _, record := range s.records {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -198,15 +200,18 @@ func (s *LocalJSONLStore) Search(ctx context.Context, queryVector []float32, top
 	return results, nil
 }
 
-func (s *LocalJSONLStore) recordsSnapshot(ctx context.Context) ([]localVectorRecord, error) {
+// ensureLoaded 确保记录已从磁盘加载（双检锁）
+func (s *LocalJSONLStore) ensureLoaded(ctx context.Context) error {
+	s.mu.RLock()
+	loaded := s.loaded
+	s.mu.RUnlock()
+	if loaded {
+		return nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	records, err := s.loadRecordsLocked(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return append([]localVectorRecord(nil), records...), nil
+	_, err := s.loadRecordsLocked(ctx)
+	return err
 }
 
 func (s *LocalJSONLStore) loadRecordsLocked(ctx context.Context) ([]localVectorRecord, error) {

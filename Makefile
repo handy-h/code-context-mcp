@@ -1,6 +1,6 @@
 # Makefile for code-context-mcp
 
-.PHONY: help build test clean lint vet fmt install docker-build docker-run
+.PHONY: help build test clean lint vet fmt install
 
 # Variables
 BINARY_NAME := code-context-mcp
@@ -8,9 +8,7 @@ BINARY_PATH := cmd/code-context-mcp/$(BINARY_NAME)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD)
 DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
-BUILD_DATE := $(shell date '+%Y-%m-%d %H:%M:%S')
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
-DEPLOY_DIR := code-text
 
 help: ## Display this help message
 	@echo "Usage: make [target]"
@@ -55,93 +53,26 @@ fmt: ## Format code
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
 	@rm -f $(BINARY_PATH) $(BINARY_PATH).exe coverage.out coverage.html
-	@rm -rf dist/ code-text/
-
-docker-build: ## Build Docker image
-	@echo "Building Docker image..."
-	@docker build -t code-context-mcp:$(VERSION) .
-
-docker-run: ## Run Docker container
-	@echo "Running Docker container..."
-	@docker run --rm -it \
-		-e OLLAMA_URL=http://host.docker.internal:11434 \
-		-e ZILLIZ_URI=your_zilliz_uri_here \
-		-e ZILLIZ_TOKEN=your_zilliz_token_here \
-		-e PROJECT_PATH=/app/project \
-		-v $(PWD):/app/project \
-		code-context-mcp:$(VERSION)
-
-release-snapshot: ## Create a snapshot release with GoReleaser
-	@echo "Creating snapshot release..."
-	@if command -v goreleaser >/dev/null 2>&1; then \
-		goreleaser release --snapshot --clean; \
-	else \
-		echo "GoReleaser not installed. Installing..."; \
-		go install github.com/goreleaser/goreleaser/v2@latest; \
-		goreleaser release --snapshot --clean; \
-	fi
-
-check-deps: ## Check for outdated dependencies
-	@echo "Checking for outdated dependencies..."
-	@go list -u -m -json all | go-mod-outdated -update -direct
-
-update-deps: ## Update all dependencies
-	@echo "Updating dependencies..."
-	@go get -u ./...
-	@go mod tidy
 
 version: ## Show version information
 	@echo "Version: $(VERSION)"
 	@echo "Commit: $(COMMIT)"
 	@echo "Date: $(DATE)"
 
-# Development targets
-dev: build ## Build and run in development mode
-	@echo "Running in development mode..."
-	@./$(BINARY_PATH) -index . || true
-
-gen-script: ## Generate start-mcp.sh from template
-	@echo "Generating start-mcp.sh..."
-	@sed -e 's/__VERSION__/$(VERSION)/g' -e 's/__BUILD_DATE__/$(BUILD_DATE)/g' start-mcp.sh.template > start-mcp.sh
-	@chmod +x start-mcp.sh
-	@echo "Generated start-mcp.sh with version $(VERSION)"
-
-deploy: build gen-script ## Build binary and deploy to code-text/ by default
-	@echo "Deploying to $(DEPLOY_DIR)..."
-	@mkdir -p $(DEPLOY_DIR)
-	@# Copy binary (always needed)
-	@cp $(BINARY_PATH) $(DEPLOY_DIR)/$(BINARY_NAME)
-	@cp start-mcp.sh $(DEPLOY_DIR)/start-mcp.sh
-	@chmod +x $(DEPLOY_DIR)/start-mcp.sh
-	@echo "Deployed:"
-	@echo "  - $(DEPLOY_DIR)/$(BINARY_NAME)"
-	@echo "  - $(DEPLOY_DIR)/start-mcp.sh"
-	@echo "  - $(DEPLOY_DIR)/code_context.jsonl (created after indexing in local-jsonl mode)"
-	@echo "You can now run: cd $(DEPLOY_DIR) && ./start-mcp.sh"
-
-start-mcp: ## Start MCP server via wrapper (injects env from opencode.json)
-	@echo "Starting MCP via wrapper..."
-	@./scripts/start-mcp.sh
-
-index-mcp: build ## Build and index project via wrapper
-	@echo "Indexing project via wrapper..."
-	@./scripts/start-mcp.sh -index "$(PWD)"
+dev: build ## Build and run in development mode (index current directory)
+	@./$(BINARY_PATH) -index .
 
 # Cross-compilation targets
-build-linux: ## Build for Linux
-	@echo "Building for Linux..."
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/code-context-mcp
+build-linux: ## Build for Linux amd64
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/code-context-mcp
 
-build-darwin: ## Build for macOS (Intel)
-	@echo "Building for macOS (Intel)..."
-	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-amd64 ./cmd/code-context-mcp
+build-darwin: ## Build for macOS Intel
+	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-amd64 ./cmd/code-context-mcp
 
-build-darwin-arm64: ## Build for macOS (Apple Silicon)
-	@echo "Building for macOS (Apple Silicon)..."
-	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-arm64 ./cmd/code-context-mcp
+build-darwin-arm64: ## Build for macOS Apple Silicon
+	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-arm64 ./cmd/code-context-mcp
 
-build-windows: ## Build for Windows
-	@echo "Building for Windows..."
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-windows-amd64.exe ./cmd/code-context-mcp
+build-windows: ## Build for Windows amd64
+	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-windows-amd64.exe ./cmd/code-context-mcp
 
 build-all: build-linux build-darwin build-darwin-arm64 build-windows ## Build for all platforms

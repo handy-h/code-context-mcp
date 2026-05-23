@@ -28,12 +28,12 @@
 |------|------|------|
 | IndexManager | index_manager.go | 索引生命周期管理：状态检测、全量/增量构建、过期判断 |
 | IndexStateStore | index_state.go | 索引状态持久化：读写索引状态文件、指纹计算 |
-| StructureSplitter | structure_splitter.go | 按语言语法结构切分代码 |
-| InvertedIndex | inverted_index.go | 内存倒排索引：符号→位置映射 |
-| FileSummary | file_summary.go | 文件结构摘要提取 |
-| VectorDB | vectordb.go | 向量数据库封装（扩展 metadata + DeleteByFile） |
-| MCPServer | server.go | MCP 协议服务器 |
-| Tools | tools.go | 工具定义与处理器注册 |
+| StructureSplitter | `pkg/structure/splitter.go` + `splitter_*.go` | 按语言语法结构切分代码 |
+| InvertedIndex | `internal/search/inverted_index.go` | 内存倒排索引：符号→位置映射 |
+| FileSummary | `pkg/file/summary.go` | 文件结构摘要提取（类型定义在 `internal/types/types.go`） |
+| VectorDB | `internal/search/vectordb.go` | Zilliz 向量数据库实现（接口定义在 `internal/search/contracts.go`） |
+| MCPServer | `internal/server/server.go` | MCP 协议服务器（工具定义在 `internal/server/tool_defs.go`） |
+| Tools | `internal/tools/tools.go` | 工具处理器注册 |
 
 ### 1.3 数据流
 

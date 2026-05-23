@@ -113,9 +113,7 @@ func scanFileMtimes(projectPath string, extensions []string) (map[string]string,
 			return err
 		}
 		if info.IsDir() {
-			name := info.Name()
-			if name == "node_modules" || name == ".git" || name == "dist" ||
-				name == ".venv" || name == "vendor" || name == "__pycache__" {
+			if shouldSkipDir(info.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -147,4 +145,21 @@ func computeMtimeFingerprint(mtimes map[string]string) string {
 		h.Write([]byte(path + ":" + mtimes[path] + "\n"))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
+}
+
+// SaveFromStats 根据索引统计信息统一保存索引状态（消除三处重复的保存逻辑）
+func (s *IndexStateStore) SaveFromStats(projectPath string, stats *IndexStats, extensions []string) error {
+	fingerprint, mtimes, err := s.GetCurrentFingerprint(projectPath, extensions)
+	if err != nil {
+		return fmt.Errorf("获取索引指纹失败: %v", err)
+	}
+	state := &types.IndexState{
+		LastIndexedAt: time.Now(),
+		Fingerprint:   fingerprint,
+		TotalFiles:    stats.TotalFiles,
+		TotalChunks:   stats.TotalChunks,
+		ProjectPath:   projectPath,
+		FileMtimes:    mtimes,
+	}
+	return s.Save(state)
 }

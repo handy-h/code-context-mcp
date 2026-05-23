@@ -3,7 +3,7 @@ package indexer
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +26,15 @@ type document struct {
 	Content  string
 }
 
+// shouldSkipDir 判断是否应跳过该目录（不参与索引）
+func shouldSkipDir(name string) bool {
+	switch name {
+	case "node_modules", ".git", "dist", ".venv", "vendor", "__pycache__":
+		return true
+	}
+	return false
+}
+
 // ScanFiles 扫描指定目录下的目标文件
 func ScanFiles(root string, extensions []string) ([]document, error) {
 	var docs []document
@@ -33,11 +42,8 @@ func ScanFiles(root string, extensions []string) ([]document, error) {
 		if err != nil {
 			return err
 		}
-		// 跳过无用目录
 		if info.IsDir() {
-			name := info.Name()
-			if name == "node_modules" || name == ".git" || name == "dist" ||
-				name == ".venv" || name == "vendor" || name == "__pycache__" {
+			if shouldSkipDir(info.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -70,11 +76,11 @@ func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb 
 	if err != nil {
 		return nil, fmt.Errorf("扫描文件失败: %v", err)
 	}
-	log.Printf("扫描到 %d 个文件", len(docs))
+	slog.Info("文件扫描完成", "count", len(docs))
 
 	// 2. 丢弃旧集合，重建干净的索引
 	if err := vdb.DropCollection(ctx); err != nil {
-		log.Printf("丢弃旧集合（首次运行可忽略）: %v", err)
+		slog.Warn("丢弃旧集合失败（首次运行可忽略）", "err", err)
 	}
 
 	// 3. 确保集合存在
@@ -101,7 +107,7 @@ func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb 
 		for _, chunk := range chunks {
 			vector, err := embedding.GetEmbedding(cfg, chunk.Content)
 			if err != nil {
-				log.Printf("向量化失败 [%s]: %v", doc.FilePath, err)
+				slog.Warn("向量化失败", "file", doc.FilePath, "err", err)
 				continue
 			}
 
@@ -115,7 +121,7 @@ func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb 
 
 	// 5. 批量插入
 	if len(allVectors) > 0 {
-		log.Printf("插入 %d 条向量...", len(allVectors))
+		slog.Info("插入向量", "count", len(allVectors))
 		if err := vdb.Insert(ctx, allIDs, allTexts, allVectors, allMetadatas); err != nil {
 			return nil, fmt.Errorf("插入失败: %v", err)
 		}
