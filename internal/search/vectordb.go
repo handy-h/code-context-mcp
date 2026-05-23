@@ -12,22 +12,44 @@ import (
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 )
 
-// VectorDB 封装 Zilliz Cloud 向量数据库操作
+// VectorStore is the storage backend used by indexing and semantic search.
+type VectorStore interface {
+	DropCollection(ctx context.Context) error
+	Close()
+	HasCollection(ctx context.Context) (bool, error)
+	DeleteByFile(ctx context.Context, filePath string) error
+	EnsureCollection(ctx context.Context) error
+	Insert(ctx context.Context, ids []string, texts []string, vectors [][]float32, metadatas []map[string]interface{}) error
+	Search(ctx context.Context, queryVector []float32, topK int) ([]CodeSearchResult, error)
+}
+
+// VectorDB wraps a Zilliz Cloud vector database client.
 type VectorDB struct {
 	client client.Client
 	cfg    config.Config
 }
 
-// CodeSearchResult 语义搜索结果
+// CodeSearchResult describes a semantic search result.
 type CodeSearchResult struct {
 	File  string  `json:"file"`
 	Text  string  `json:"text"`
 	Score float32 `json:"score"`
 }
 
-// NewVectorDB 创建向量数据库连接
-func NewVectorDB(ctx context.Context, cfg config.Config) (*VectorDB, error) {
-	// 如果context没有deadline，添加30秒超时
+// NewVectorDB creates the configured vector store backend.
+func NewVectorDB(ctx context.Context, cfg config.Config) (VectorStore, error) {
+	switch cfg.VectorStore {
+	case config.VectorStoreZilliz:
+		return NewZillizVectorDB(ctx, cfg)
+	case config.VectorStoreLocalJSONL:
+		return NewLocalJSONLStore(cfg.VectorStorePath)
+	default:
+		return nil, fmt.Errorf("unsupported vector store: %s", cfg.VectorStore)
+	}
+}
+
+// NewZillizVectorDB creates a Zilliz-backed vector store.
+func NewZillizVectorDB(ctx context.Context, cfg config.Config) (*VectorDB, error) {
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
@@ -44,29 +66,28 @@ func NewVectorDB(ctx context.Context, cfg config.Config) (*VectorDB, error) {
 	return &VectorDB{client: c, cfg: cfg}, nil
 }
 
-// DropCollection 删除集合（重建索引时清理旧数据）
+// DropCollection deletes the backing collection.
 func (v *VectorDB) DropCollection(ctx context.Context) error {
 	return v.client.DropCollection(ctx, v.cfg.CollectionName)
 }
 
-// Close 关闭连接
+// Close closes the client.
 func (v *VectorDB) Close() {
 	v.client.Close()
 }
 
-// HasCollection 检查集合是否存在
+// HasCollection checks whether the backing collection exists.
 func (v *VectorDB) HasCollection(ctx context.Context) (bool, error) {
 	return v.client.HasCollection(ctx, v.cfg.CollectionName)
 }
 
-// DeleteByFile 按文件路径删除向量数据
+// DeleteByFile removes vectors whose metadata.file matches filePath.
 func (v *VectorDB) DeleteByFile(ctx context.Context, filePath string) error {
 	has, err := v.client.HasCollection(ctx, v.cfg.CollectionName)
 	if err != nil || !has {
-		return nil // 集合不存在，无需删除
+		return nil
 	}
 
-	// 使用 metadata.file 过滤表达式删除
 	expr := fmt.Sprintf(`metadata["file"] == "%s"`, filePath)
 	if err := v.client.Delete(ctx, v.cfg.CollectionName, "", expr); err != nil {
 		return fmt.Errorf("按文件删除向量失败: %v", err)
@@ -74,7 +95,7 @@ func (v *VectorDB) DeleteByFile(ctx context.Context, filePath string) error {
 	return nil
 }
 
-// EnsureCollection 确保集合存在，不存在则创建
+// EnsureCollection ensures the collection exists and is loaded.
 func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 	has, err := v.client.HasCollection(ctx, v.cfg.CollectionName)
 	if err != nil {
@@ -108,7 +129,6 @@ func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 		return fmt.Errorf("创建集合失败: %v", err)
 	}
 
-	// 创建索引
 	idx := entity.NewGenericIndex("embedding_idx", entity.AUTOINDEX, map[string]string{
 		"metric_type": string(entity.COSINE),
 	})
@@ -116,7 +136,6 @@ func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 		return fmt.Errorf("创建索引失败: %v", err)
 	}
 
-	// 加载集合到内存（Zilliz Serverless 需要显式加载才能搜索）
 	if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
 		return fmt.Errorf("加载集合失败: %v", err)
 	}
@@ -125,7 +144,7 @@ func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 	return nil
 }
 
-// Insert 批量插入向量数据
+// Insert inserts vectors into the collection.
 func (v *VectorDB) Insert(ctx context.Context, ids []string, texts []string, vectors [][]float32, metadatas []map[string]interface{}) error {
 	metaBytes := make([][]byte, len(metadatas))
 	for i, m := range metadatas {
@@ -146,18 +165,16 @@ func (v *VectorDB) Insert(ctx context.Context, ids []string, texts []string, vec
 	return err
 }
 
-// Search 语义搜索：query向量 → 向量搜索 → 返回结果
+// Search performs semantic search against the vector store.
 func (v *VectorDB) Search(ctx context.Context, queryVector []float32, topK int) ([]CodeSearchResult, error) {
 	if topK <= 0 {
 		topK = 5
 	}
 
-	// 确保集合已加载到内存（Zilliz Serverless 需要显式加载）
 	if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
 		return nil, fmt.Errorf("加载集合失败: %v", err)
 	}
 
-	// 创建搜索参数
 	sp, err := entity.NewIndexAUTOINDEXSearchParam(1)
 	if err != nil {
 		return nil, fmt.Errorf("创建搜索参数失败: %v", err)
@@ -165,9 +182,9 @@ func (v *VectorDB) Search(ctx context.Context, queryVector []float32, topK int) 
 
 	results, err := v.client.Search(
 		ctx, v.cfg.CollectionName,
-		[]string{},                   // partition names
-		"",                           // expression filter
-		[]string{"text", "metadata"}, // output fields
+		[]string{},
+		"",
+		[]string{"text", "metadata"},
 		[]entity.Vector{entity.FloatVector(queryVector)},
 		"embedding",
 		entity.COSINE,
@@ -181,17 +198,13 @@ func (v *VectorDB) Search(ctx context.Context, queryVector []float32, topK int) 
 	var searchResults []CodeSearchResult
 	if len(results) > 0 {
 		for i := 0; i < len(results[0].Scores); i++ {
-			sr := CodeSearchResult{
-				Score: results[0].Scores[i],
-			}
-			// 提取 text 字段
+			sr := CodeSearchResult{Score: results[0].Scores[i]}
 			textCol := results[0].Fields.GetColumn("text")
 			if textCol != nil {
 				if vc, ok := textCol.(*entity.ColumnVarChar); ok && i < len(vc.Data()) {
 					sr.Text = vc.Data()[i]
 				}
 			}
-			// 提取 metadata 中的 file 字段
 			metaCol := results[0].Fields.GetColumn("metadata")
 			if metaCol != nil {
 				if jc, ok := metaCol.(*entity.ColumnJSONBytes); ok && i < len(jc.Data()) {

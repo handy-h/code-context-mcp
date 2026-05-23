@@ -64,7 +64,7 @@ func ScanFiles(root string, extensions []string) ([]document, error) {
 }
 
 // BuildIndex 构建项目代码索引：扫描 → 切分 → 向量化 → 插入
-func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb *search.VectorDB, invIndex *search.InvertedIndex) (*IndexStats, error) {
+func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb search.VectorStore, invIndex *search.InvertedIndex) (*IndexStats, error) {
 	// 1. 扫描文件
 	docs, err := ScanFiles(projectPath, cfg.ScanExtensions)
 	if err != nil {

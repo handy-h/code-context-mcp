@@ -10,7 +10,7 @@ COMMIT := $(shell git rev-parse --short HEAD)
 DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 BUILD_DATE := $(shell date '+%Y-%m-%d %H:%M:%S')
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
-DEPLOY_DIR := .
+DEPLOY_DIR := code-text
 
 help: ## Display this help message
 	@echo "Usage: make [target]"
@@ -55,7 +55,7 @@ fmt: ## Format code
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
 	@rm -f $(BINARY_PATH) $(BINARY_PATH).exe coverage.out coverage.html
-	@rm -rf dist/
+	@rm -rf dist/ code-text/
 
 docker-build: ## Build Docker image
 	@echo "Building Docker image..."
@@ -106,25 +106,17 @@ gen-script: ## Generate start-mcp.sh from template
 	@chmod +x start-mcp.sh
 	@echo "Generated start-mcp.sh with version $(VERSION)"
 
-deploy: build gen-script ## Build binary and deploy to directory (with start-mcp.sh)
+deploy: build gen-script ## Build binary and deploy to code-text/ by default
 	@echo "Deploying to $(DEPLOY_DIR)..."
 	@mkdir -p $(DEPLOY_DIR)
 	@# Copy binary (always needed)
 	@cp $(BINARY_PATH) $(DEPLOY_DIR)/$(BINARY_NAME)
-	@# Copy script only if not already in place
-	@if [ "$(DEPLOY_DIR)" != "." ]; then \
-		cp start-mcp.sh $(DEPLOY_DIR)/start-mcp.sh; \
-		chmod +x $(DEPLOY_DIR)/start-mcp.sh; \
-	else \
-		echo "Script already in place: ./start-mcp.sh"; \
-	fi
+	@cp start-mcp.sh $(DEPLOY_DIR)/start-mcp.sh
+	@chmod +x $(DEPLOY_DIR)/start-mcp.sh
 	@echo "Deployed:"
 	@echo "  - $(DEPLOY_DIR)/$(BINARY_NAME)"
-	@if [ "$(DEPLOY_DIR)" != "." ]; then \
-		echo "  - $(DEPLOY_DIR)/start-mcp.sh"; \
-	else \
-		echo "  - ./start-mcp.sh (already in place)"; \
-	fi
+	@echo "  - $(DEPLOY_DIR)/start-mcp.sh"
+	@echo "  - $(DEPLOY_DIR)/code_context.jsonl (created after indexing in local-jsonl mode)"
 	@echo "You can now run: cd $(DEPLOY_DIR) && ./start-mcp.sh"
 
 start-mcp: ## Start MCP server via wrapper (injects env from opencode.json)

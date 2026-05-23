@@ -46,7 +46,7 @@ func main() {
 	cfg := config.LoadConfig()
 
 	// 验证必要配置
-	if cfg.ZillizURI == "" || cfg.ZillizToken == "" {
+	if cfg.VectorStore == config.VectorStoreZilliz && (cfg.ZillizURI == "" || cfg.ZillizToken == "") {
 		fmt.Fprintln(os.Stderr, "错误: 请配置 ZILLIZ_URI 和 ZILLIZ_TOKEN 环境变量")
 		fmt.Fprintln(os.Stderr, "可创建 .env 文件或设置系统环境变量")
 		os.Exit(1)

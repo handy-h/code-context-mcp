@@ -15,6 +15,7 @@
 ## 核心特性
 
 - **自动索引**：MCP 启动时自动检测索引状态，搜索时发现过期自动后台增量更新，无需手动调用 `index_project`
+- **本地向量存储**：默认使用本地 JSONL 文件保存向量，Zilliz Cloud 作为可选后端
 - **按代码结构切分**：按函数/结构体/组件等语法边界切分，而非固定字符窗口，搜索结果语义完整
 - **精确符号搜索**：基于倒排索引，支持驼峰/下划线模糊匹配，结果按文件分组含上下文摘要
 - **影响范围分析**：一次调用完成 delete/rename/modify 的影响分析，返回修改建议
@@ -40,8 +41,10 @@ ollama pull nomic-embed-text:latest
 - 兼容 OpenAI API 的服务：如 Azure OpenAI、OpenRouter、LiteLLM 等
 - 需要配置 `OPENAI_API_KEY` 环境变量
 
-**Zilliz Cloud** — 向量数据库服务
+**向量存储** — 默认本地 JSONL，可选 Zilliz Cloud
 
+- 本地 JSONL：默认配置，无需远程向量数据库，适合个人项目和中小型代码库
+- Zilliz Cloud：设置 `VECTOR_STORE=zilliz` 后使用，适合团队共享或更大规模向量检索
 - 注册 [Zilliz Cloud](https://cloud.zilliz.com/) 获取 URI 和 API Token
 - 免费套餐即可满足个人项目需求
 
@@ -50,8 +53,10 @@ ollama pull nomic-embed-text:latest
 ```bash
 git clone https://github.com/handy-h/code-context-mcp.git
 cd code-context-mcp
-go build -o code-context-mcp .
+make deploy
 ```
+
+`make deploy` 会把可执行文件和 `start-mcp.sh` 放到 `code-text/` 目录。本地 JSONL 模式索引后也会把向量文件写到这个目录，便于把整个 `code-text/` 复制到其他项目中配置 MCP。
 
 ### 3. 配置环境变量
 
@@ -59,32 +64,44 @@ go build -o code-context-mcp .
 cp .env.example .env
 ```
 
-编辑 `.env`，填入你的 Zilliz Cloud 凭据和项目路径：
+编辑 `.env`，填入项目路径。默认使用本地 JSONL：
 
 ```env
+VECTOR_STORE=local
+PROJECT_PATH=/path/to/your/project
+```
+
+如需继续使用 Zilliz：
+
+```env
+VECTOR_STORE=zilliz
 ZILLIZ_URI=https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com
 ZILLIZ_TOKEN=your_api_token_here
 PROJECT_PATH=/path/to/your/project
 ```
 
-### 4. 初始化 Zilliz 数据集
+### 4. 初始化索引
 
-首次使用时，需要初始化 Zilliz Cloud 数据集。有两种方式：
+首次使用时，需要初始化向量索引。有两种方式：
 
 **方式一：自动初始化（推荐）**
 
 1. 确保 `AUTO_INDEX=true`（默认值）
 2. 启动 MCP 服务（通过 AI 编程工具配置）
-3. 服务启动时会自动检测并创建数据集（集合名为 `code-context`）
+3. 服务启动时会自动检测并创建本地 JSONL 文件或 Zilliz 数据集
 
 **方式二：手动初始化**
 
 ```bash
-# 构建索引，自动创建数据集
-./code-context-mcp -index /path/to/your/project
+# 构建索引，自动写入本地 JSONL 或 Zilliz
+./code-text/code-context-mcp -index /path/to/your/project
 ```
 
-**验证数据集创建成功**：
+**本地 JSONL 验证**：
+
+索引完成后查看 `code-text/code_context.jsonl` 是否生成。
+
+**Zilliz 数据集验证**：
 
 1. 登录 [Zilliz Cloud 控制台](https://cloud.zilliz.com/)
 2. 进入你的集群
@@ -126,8 +143,10 @@ PROJECT_PATH=/path/to/your/project
 
 | 环境变量          | 默认值         | 说明                                |
 | ----------------- | -------------- | ----------------------------------- |
-| `ZILLIZ_URI`      | （必填）       | Zilliz Cloud URI                    |
-| `ZILLIZ_TOKEN`    | （必填）       | Zilliz Cloud API Token              |
+| `VECTOR_STORE`    | `local`        | 向量存储后端：`local`/`local-jsonl`/`jsonl` 或 `zilliz` |
+| `VECTOR_STORE_PATH` | （自动）     | 本地 JSONL 文件路径，`start-mcp.sh` 默认写入 `code-text/{COLLECTION_NAME}.jsonl` |
+| `ZILLIZ_URI`      | （可选）       | Zilliz Cloud URI，仅 `VECTOR_STORE=zilliz` 时需要 |
+| `ZILLIZ_TOKEN`    | （可选）       | Zilliz Cloud API Token，仅 `VECTOR_STORE=zilliz` 时需要 |
 | `COLLECTION_NAME` | `code-context` | Milvus 集合名，首次使用时会自动创建 |
 
 #### 索引配置
@@ -227,9 +246,13 @@ OLLAMA_EMBED_MODEL=nomic-embed-text:latest
 # OPENAI_API_KEY=your_openai_api_key_here
 
 # ============================================================
-# Zilliz Cloud 向量数据库配置
+# 向量存储配置
 # ============================================================
 
+VECTOR_STORE=local
+# VECTOR_STORE_PATH=/path/to/code-text/code_context.jsonl
+
+# 仅 VECTOR_STORE=zilliz 时需要：
 ZILLIZ_URI=https://your-instance.serverless.gcp-us-west1.cloud.zilliz.com
 ZILLIZ_TOKEN=your_zilliz_token_here
 COLLECTION_NAME=code_context
