@@ -38,8 +38,9 @@ func NewOllamaProvider(url, model string, dim int) *OllamaProvider {
 // GetEmbedding 实现 EmbeddingProvider 接口
 func (p *OllamaProvider) GetEmbedding(text string) ([]float32, error) {
 	reqBody := ollamaRequest{
-		Model:  p.model,
-		Prompt: text,
+		Model:      p.model,
+		Prompt:     text,
+		Dimensions: p.dim,
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -107,8 +108,9 @@ func NewOpenAIProvider(baseURL, model, apiKey string, dim int) *OpenAIProvider {
 
 // openaiEmbeddingRequest OpenAI embeddings API 请求体
 type openaiEmbeddingRequest struct {
-	Model string   `json:"model"`
-	Input []string `json:"input"`
+	Model      string   `json:"model"`
+	Input      []string `json:"input"`
+	Dimensions int      `json:"dimensions,omitempty"`
 }
 
 // openaiEmbeddingResponse OpenAI embeddings API 响应体
@@ -133,8 +135,9 @@ func (p *OpenAIProvider) GetEmbedding(text string) ([]float32, error) {
 	}
 
 	reqBody := openaiEmbeddingRequest{
-		Model: p.model,
-		Input: []string{text},
+		Model:      p.model,
+		Input:      []string{text},
+		Dimensions: p.dim,
 	}
 
 	jsonData, err := json.Marshal(reqBody)

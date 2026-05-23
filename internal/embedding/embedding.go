@@ -4,8 +4,9 @@ import "github.com/handy-h/code-context-mcp/internal/config"
 
 // ollamaRequest Ollama embeddings API 请求体
 type ollamaRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
+	Model      string `json:"model"`
+	Prompt     string `json:"prompt"`
+	Dimensions int    `json:"dimensions,omitempty"`
 }
 
 // ollamaResponse Ollama embeddings API 响应体
