@@ -76,8 +76,18 @@ func (mgr *IndexManager) CheckAndAutoIndex(ctx context.Context) error {
 		return nil
 	}
 
-	log.Println("索引已过期（指纹不匹配），开始全量索引构建...")
-	return mgr.fullBuild(ctx)
+	// 指纹不匹配（有新提交或文件变更），走增量更新而非全量重建
+	// fullBuild 会删除整个向量库再重建，对活跃项目代价过高
+	log.Println("索引已过期（指纹不匹配），开始增量更新...")
+	go mgr.rebuildInvertedIndex(ctx)
+	if err := mgr.incrementalUpdate(ctx); err != nil {
+		log.Printf("增量更新失败（%v），回退到全量重建...", err)
+		return mgr.fullBuild(ctx)
+	}
+	mgr.mu.Lock()
+	mgr.stale = false
+	mgr.mu.Unlock()
+	return nil
 }
 
 // fullBuild 全量构建索引

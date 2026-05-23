@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -137,8 +138,13 @@ func scanFileMtimes(projectPath string, extensions []string) (map[string]string,
 // computeMtimeFingerprint 计算文件 mtime 摘要
 func computeMtimeFingerprint(mtimes map[string]string) string {
 	h := sha256.New()
-	for path, mtime := range mtimes {
-		h.Write([]byte(path + ":" + mtime + "\n"))
+	keys := make([]string, 0, len(mtimes))
+	for k := range mtimes {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, path := range keys {
+		h.Write([]byte(path + ":" + mtimes[path] + "\n"))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
 }
