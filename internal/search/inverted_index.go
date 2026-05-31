@@ -285,7 +285,7 @@ func camelToSnake(s string) string {
 func snakeToCamel(s string) string {
 	parts := strings.Split(s, "_")
 	for i, p := range parts {
-		if len(p) > 0 {
+		if p != "" {
 			parts[i] = strings.ToUpper(p[:1]) + p[1:]
 		}
 	}

@@ -86,7 +86,7 @@ func TestOllamaProvider_GetEmbedding(t *testing.T) {
 		resp := ollamaResponse{
 			Embedding: []float32{0.1, 0.2, 0.3},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -103,7 +103,7 @@ func TestOllamaProvider_GetEmbedding(t *testing.T) {
 func TestOllamaProvider_GetEmbedding_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal error"))
+		_, _ = w.Write([]byte("internal error"))
 	}))
 	defer server.Close()
 
@@ -117,7 +117,7 @@ func TestOllamaProvider_GetEmbedding_Error(t *testing.T) {
 func TestOllamaProvider_GetEmbedding_EmptyVector(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := ollamaResponse{Embedding: []float32{}}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -160,7 +160,7 @@ func TestOpenAIProvider_GetEmbedding(t *testing.T) {
 				{Embedding: []float32{0.1, 0.2, 0.3}},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -185,7 +185,7 @@ func TestOpenAIProvider_GetEmbedding_NoAPIKey(t *testing.T) {
 func TestOpenAIProvider_GetEmbedding_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error": "invalid key"}`))
+		_, _ = w.Write([]byte(`{"error": "invalid key"}`))
 	}))
 	defer server.Close()
 
@@ -210,7 +210,7 @@ func TestGeminiProvider_GetEmbedding(t *testing.T) {
 				"values": []float64{0.1, 0.2, 0.3},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -239,7 +239,7 @@ func TestGeminiProvider_GetEmbedding_DimensionMismatch(t *testing.T) {
 				"values": []float64{0.1, 0.2, 0.3, 0.4, 0.5},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -253,7 +253,7 @@ func TestGeminiProvider_GetEmbedding_DimensionMismatch(t *testing.T) {
 func TestGeminiProvider_GetEmbedding_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error": {"message": "bad request"}}`))
+		_, _ = w.Write([]byte(`{"error": {"message": "bad request"}}`))
 	}))
 	defer server.Close()
 

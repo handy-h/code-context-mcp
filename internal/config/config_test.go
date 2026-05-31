@@ -64,7 +64,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 		"SEARCH_TIMEOUT_SECONDS", "INDEX_TIMEOUT_SECONDS",
 	}
 	for _, v := range envVars {
-		os.Unsetenv(v)
+		_ = os.Unsetenv(v)
 	}
 
 	cfg := LoadConfig()

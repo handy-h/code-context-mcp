@@ -62,11 +62,11 @@ func (p *OllamaProvider) GetEmbedding(text string) ([]float32, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ollama request failed (please confirm Ollama is running): %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -161,11 +161,11 @@ func (p *OpenAIProvider) GetEmbedding(text string) ([]float32, error) {
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -207,30 +207,6 @@ func NewGeminiProvider(baseURL, model, apiKey string, dim int) *GeminiProvider {
 		dim:     dim,
 		client:  &http.Client{Timeout: 30 * time.Second},
 	}
-}
-
-// geminiEmbeddingRequest Gemini embeddings API 请求体
-type geminiEmbeddingRequest struct {
-	Model                string                 `json:"model"`
-	Content              geminiEmbeddingContent `json:"content"`
-	TaskType             string                 `json:"taskType,omitempty"`
-	Title                string                 `json:"title,omitempty"`
-	OutputDimensionality int                    `json:"output_dimensionality,omitempty"`
-}
-
-type geminiEmbeddingContent struct {
-	Parts []geminiPart `json:"parts"`
-}
-
-type geminiPart struct {
-	Text string `json:"text"`
-}
-
-// geminiEmbeddingResponse Gemini embeddings API 响应体
-type geminiEmbeddingResponse struct {
-	Embedding struct {
-		Values []float32 `json:"values"`
-	} `json:"embedding"`
 }
 
 // GetEmbedding 实现 EmbeddingProvider 接口
@@ -275,11 +251,11 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Gemini API request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {

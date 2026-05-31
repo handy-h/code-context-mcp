@@ -30,9 +30,9 @@ func main() {
 
 	// 加载 .env 配置文件
 	// 按优先级尝试：1.当前目录 2.可执行文件所在目录
-	godotenv.Load(".env")
+	_ = godotenv.Load(".env")
 	if exe, err := os.Executable(); err == nil {
-		godotenv.Load(filepath.Join(filepath.Dir(exe), ".env"))
+		_ = godotenv.Load(filepath.Join(filepath.Dir(exe), ".env"))
 	}
 
 	// 命令行参数

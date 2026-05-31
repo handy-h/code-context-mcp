@@ -81,8 +81,6 @@ func LoadConfig() Config {
 		embeddingProvider = ProviderOpenAI
 	case "gemini":
 		embeddingProvider = ProviderGemini
-	case "ollama":
-		fallthrough
 	default:
 		embeddingProvider = ProviderOllama
 	}
@@ -149,7 +147,7 @@ func normalizeCollectionName(name string) string {
 	name = collectionNameRe.ReplaceAllString(name, "_")
 
 	// 确保不以数字开头（如果是，添加前缀 "c_"）
-	if len(name) > 0 && name[0] >= '0' && name[0] <= '9' {
+	if name != "" && name[0] >= '0' && name[0] <= '9' {
 		name = "c_" + name
 	}
 

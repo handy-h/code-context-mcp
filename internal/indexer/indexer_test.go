@@ -19,9 +19,15 @@ func TestScanFiles_Empty(t *testing.T) {
 
 func TestScanFiles_Extensions(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0644)
-	os.WriteFile(filepath.Join(dir, "app.js"), []byte("console.log()"), 0644)
-	os.WriteFile(filepath.Join(dir, "style.css"), []byte("body{}"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app.js"), []byte("console.log()"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "style.css"), []byte("body{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	docs, err := ScanFiles(dir, []string{".go", ".js"})
 	if err != nil {
@@ -34,15 +40,25 @@ func TestScanFiles_Extensions(t *testing.T) {
 
 func TestScanFiles_SkipDirs(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	nodeModules := filepath.Join(dir, "node_modules")
-	os.MkdirAll(nodeModules, 0755)
-	os.WriteFile(filepath.Join(nodeModules, "lib.go"), []byte("package lib"), 0644)
+	if err := os.MkdirAll(nodeModules, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nodeModules, "lib.go"), []byte("package lib"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	gitDir := filepath.Join(dir, ".git")
-	os.MkdirAll(gitDir, 0755)
-	os.WriteFile(filepath.Join(gitDir, "hook.go"), []byte("package hook"), 0644)
+	if err := os.MkdirAll(gitDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gitDir, "hook.go"), []byte("package hook"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	docs, err := ScanFiles(dir, []string{".go"})
 	if err != nil {
@@ -56,8 +72,12 @@ func TestScanFiles_SkipDirs(t *testing.T) {
 func TestScanFiles_RelativePaths(t *testing.T) {
 	dir := t.TempDir()
 	subDir := filepath.Join(dir, "pkg")
-	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(subDir, "util.go"), []byte("package util"), 0644)
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, "util.go"), []byte("package util"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	docs, err := ScanFiles(dir, []string{".go"})
 	if err != nil {
@@ -74,8 +94,12 @@ func TestScanFiles_RelativePaths(t *testing.T) {
 func TestScanFiles_NestedDirs(t *testing.T) {
 	dir := t.TempDir()
 	deep := filepath.Join(dir, "a", "b", "c")
-	os.MkdirAll(deep, 0755)
-	os.WriteFile(filepath.Join(deep, "deep.go"), []byte("package deep"), 0644)
+	if err := os.MkdirAll(deep, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(deep, "deep.go"), []byte("package deep"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	docs, err := ScanFiles(dir, []string{".go"})
 	if err != nil {
@@ -89,7 +113,9 @@ func TestScanFiles_NestedDirs(t *testing.T) {
 func TestScanFiles_ContentRead(t *testing.T) {
 	dir := t.TempDir()
 	content := "package main\n\nfunc main() {}"
-	os.WriteFile(filepath.Join(dir, "main.go"), []byte(content), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	docs, err := ScanFiles(dir, []string{".go"})
 	if err != nil {

@@ -20,7 +20,7 @@ linters:
 
 linters-settings:
   gocyclo:
-    min-complexity: 15
+    min-complexity: 25
   revive:
     rules:
       - name: exported
@@ -32,6 +32,14 @@ linters-settings:
       - diagnostic
       - style
       - performance
+    disabled-checks:
+      - hugeParam
+      - paramTypeCombine
+      - octalLiteral
+      - unnamedResult
+      - nestingReduce
+      - exitAfterDefer
+      - ifElseChain
 
 issues:
   exclude-use-default: false

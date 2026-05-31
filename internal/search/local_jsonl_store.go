@@ -135,7 +135,7 @@ func (s *LocalJSONLStore) Insert(ctx context.Context, ids []string, texts []stri
 	if err != nil {
 		return fmt.Errorf("打开本地向量文件失败: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	writer := bufio.NewWriter(file)
 	encoder := json.NewEncoder(writer)
@@ -228,7 +228,7 @@ func (s *LocalJSONLStore) loadRecordsLocked(ctx context.Context) ([]localVectorR
 		}
 		return nil, fmt.Errorf("读取本地向量文件失败: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var records []localVectorRecord
 	scanner := bufio.NewScanner(file)
@@ -280,16 +280,16 @@ func (s *LocalJSONLStore) writeRecordsLocked(ctx context.Context, records []loca
 	encoder := json.NewEncoder(writer)
 	for _, record := range records {
 		if err := ctx.Err(); err != nil {
-			file.Close()
+			_ = file.Close()
 			return err
 		}
 		if err := encoder.Encode(record); err != nil {
-			file.Close()
+			_ = file.Close()
 			return fmt.Errorf("写入本地向量临时文件失败: %w", err)
 		}
 	}
 	if err := writer.Flush(); err != nil {
-		file.Close()
+		_ = file.Close()
 		return err
 	}
 	if err := file.Close(); err != nil {

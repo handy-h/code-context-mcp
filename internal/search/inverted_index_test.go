@@ -270,11 +270,11 @@ func TestSearch_TypeFilter(t *testing.T) {
 	ii := NewInvertedIndex()
 	chunks := []types.CodeChunk{
 		{
-			Content: "func LoadConfig() {\n    Save()\n}",
+			Content:  "func LoadConfig() {\n    Save()\n}",
 			Metadata: map[string]interface{}{"symbol": "LoadConfig", "line_start": 1},
 		},
 		{
-			Content: "func Save() {\n    LoadConfig()\n}",
+			Content:  "func Save() {\n    LoadConfig()\n}",
 			Metadata: map[string]interface{}{"symbol": "Save", "line_start": 10},
 		},
 	}

@@ -56,7 +56,7 @@ func (v *VectorDB) DropCollection(ctx context.Context) error {
 
 // Close closes the client.
 func (v *VectorDB) Close() {
-	v.client.Close()
+	_ = v.client.Close()
 }
 
 // HasCollection checks whether the backing collection exists.
@@ -164,7 +164,7 @@ func (v *VectorDB) Search(ctx context.Context, queryVector []float32, topK int) 
 	}
 
 	if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
-			return nil, fmt.Errorf("加载集合失败: %w", err)
+		return nil, fmt.Errorf("加载集合失败: %w", err)
 	}
 
 	sp, err := entity.NewIndexAUTOINDEXSearchParam(1)

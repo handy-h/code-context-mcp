@@ -98,7 +98,9 @@ func TestIndexStateStore_Load_NoFile(t *testing.T) {
 func TestIndexStateStore_Load_Corrupted(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
-	os.WriteFile(path, []byte("not valid json"), 0644)
+	if err := os.WriteFile(path, []byte("not valid json"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	store := NewIndexStateStore(dir, path)
 	_, err := store.Load()
@@ -141,9 +143,15 @@ func TestGetGitCommitHash_NoGitDir(t *testing.T) {
 
 func TestScanFileMtimes(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.go"), []byte("package main"), 0644)
-	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("text"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "c.txt"), []byte("text"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	mtimes, err := scanFileMtimes(dir, []string{".go"})
 	if err != nil {
@@ -186,7 +194,9 @@ func TestShouldSkipDir(t *testing.T) {
 
 func TestSaveFromStats(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "test.go"), []byte("package main"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "test.go"), []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	store := NewIndexStateStore(dir, filepath.Join(dir, "state.json"))
 	stats := &IndexStats{TotalFiles: 1, TotalChunks: 5}

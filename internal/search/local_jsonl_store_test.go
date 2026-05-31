@@ -137,13 +137,17 @@ func TestLocalJSONLStore_Search_TopK(t *testing.T) {
 	path := filepath.Join(dir, "test.jsonl")
 	store, _ := NewLocalJSONLStore(path)
 	ctx := context.Background()
-	store.EnsureCollection(ctx)
+	if err := store.EnsureCollection(ctx); err != nil {
+		t.Fatal(err)
+	}
 
 	ids := []string{"doc_1", "doc_2", "doc_3"}
 	texts := []string{"a", "b", "c"}
 	vectors := [][]float32{{1, 0, 0}, {0.9, 0.1, 0}, {0.8, 0.2, 0}}
 	metadatas := []map[string]interface{}{{}, {}, {}}
-	store.Insert(ctx, ids, texts, vectors, metadatas)
+	if err := store.Insert(ctx, ids, texts, vectors, metadatas); err != nil {
+		t.Fatal(err)
+	}
 
 	results, err := store.Search(ctx, []float32{1, 0, 0}, 2)
 	if err != nil {
@@ -159,7 +163,9 @@ func TestLocalJSONLStore_DeleteByFile(t *testing.T) {
 	path := filepath.Join(dir, "test.jsonl")
 	store, _ := NewLocalJSONLStore(path)
 	ctx := context.Background()
-	store.EnsureCollection(ctx)
+	if err := store.EnsureCollection(ctx); err != nil {
+		t.Fatal(err)
+	}
 
 	ids := []string{"doc_1", "doc_2"}
 	texts := []string{"a", "b"}
@@ -168,7 +174,9 @@ func TestLocalJSONLStore_DeleteByFile(t *testing.T) {
 		{"file": "a.go"},
 		{"file": "b.go"},
 	}
-	store.Insert(ctx, ids, texts, vectors, metadatas)
+	if err := store.Insert(ctx, ids, texts, vectors, metadatas); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := store.DeleteByFile(ctx, "a.go"); err != nil {
 		t.Fatalf("DeleteByFile error: %v", err)
@@ -187,7 +195,9 @@ func TestLocalJSONLStore_DropCollection(t *testing.T) {
 	path := filepath.Join(dir, "test.jsonl")
 	store, _ := NewLocalJSONLStore(path)
 	ctx := context.Background()
-	store.EnsureCollection(ctx)
+	if err := store.EnsureCollection(ctx); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := store.DropCollection(ctx); err != nil {
 		t.Fatalf("DropCollection error: %v", err)
@@ -210,7 +220,9 @@ func TestLocalJSONLStore_HasCollection(t *testing.T) {
 		t.Error("HasCollection should return false before EnsureCollection")
 	}
 
-	store.EnsureCollection(ctx)
+	if err := store.EnsureCollection(ctx); err != nil {
+		t.Fatal(err)
+	}
 	has, _ = store.HasCollection(ctx)
 	if !has {
 		t.Error("HasCollection should return true after EnsureCollection")
@@ -239,8 +251,12 @@ func TestLocalJSONLStore_Persistence(t *testing.T) {
 	// Write data
 	store1, _ := NewLocalJSONLStore(path)
 	ctx := context.Background()
-	store1.EnsureCollection(ctx)
-	store1.Insert(ctx, []string{"doc_1"}, []string{"hello"}, [][]float32{{1, 2, 3}}, []map[string]interface{}{{"file": "a.go"}})
+	if err := store1.EnsureCollection(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := store1.Insert(ctx, []string{"doc_1"}, []string{"hello"}, [][]float32{{1, 2, 3}}, []map[string]interface{}{{"file": "a.go"}}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Reload and verify
 	store2, _ := NewLocalJSONLStore(path)
@@ -266,8 +282,12 @@ func TestLocalJSONLStore_ContextCanceled(t *testing.T) {
 	store, _ := NewLocalJSONLStore(path)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	store.EnsureCollection(ctx)
-	store.Insert(ctx, []string{"doc_1"}, []string{"hello"}, [][]float32{{1, 2, 3}}, []map[string]interface{}{{}})
+	if err := store.EnsureCollection(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Insert(ctx, []string{"doc_1"}, []string{"hello"}, [][]float32{{1, 2, 3}}, []map[string]interface{}{{}}); err != nil {
+		t.Fatal(err)
+	}
 
 	cancel()
 	_, err := store.Search(ctx, []float32{1, 2, 3}, 1)
@@ -281,7 +301,9 @@ func TestLocalJSONLStore_Insert_MismatchedLengths(t *testing.T) {
 	path := filepath.Join(dir, "test.jsonl")
 	store, _ := NewLocalJSONLStore(path)
 	ctx := context.Background()
-	store.EnsureCollection(ctx)
+	if err := store.EnsureCollection(ctx); err != nil {
+		t.Fatal(err)
+	}
 
 	err := store.Insert(ctx, []string{"doc_1"}, []string{"a", "b"}, [][]float32{{1}}, []map[string]interface{}{{}})
 	if err == nil {
