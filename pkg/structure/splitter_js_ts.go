@@ -34,7 +34,7 @@ func chunkJSTS(content string, filePath string, lang string) []types.CodeChunk {
 		trimmed := strings.TrimSpace(line)
 		if m := jsExportFuncRe.FindStringSubmatch(trimmed); m != nil {
 			symbol := m[2]
-			if m[1] != "" {
+			if m[1] != "" && symbol == "" {
 				symbol = "default"
 			}
 			boundaries = append(boundaries, boundary{i, symbol, "function"})

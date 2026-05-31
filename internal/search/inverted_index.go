@@ -13,24 +13,31 @@ import (
 var identifierRe = regexp.MustCompile(`[a-zA-Z_][a-zA-Z0-9_]*`)
 
 var keywords = map[string]bool{
-	// Go
-	"func": true, "var": true, "const": true, "type": true, "struct": true,
-	"interface": true, "package": true, "import": true, "return": true,
-	"if": true, "else": true, "for": true, "range": true, "switch": true,
-	"case": true, "default": true, "break": true, "continue": true,
-	"go": true, "defer": true, "chan": true, "map": true, "nil": true,
-	"true": true, "false": true, "string": true, "int": true, "error": true,
-	"bool": true, "byte": true, "float64": true, "make": true, "new": true,
-	"len": true, "cap": true, "append": true, "fmt": true, "ctx": true,
-	// JS/TS
+	// Go 保留字
+	"func": true, "type": true, "struct": true, "interface": true,
+	"package": true, "range": true, "go": true, "defer": true,
+	"chan": true, "map": true, "nil": true,
+	"bool": true, "byte": true, "float64": true,
+	"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
+	"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
+	"uintptr": true, "rune": true, "complex64": true, "complex128": true,
+	"make": true, "new": true, "len": true, "cap": true, "append": true,
+	// JS/TS 保留字
 	"function": true, "class": true, "export": true,
-	"let": true, "async": true, "await": true, "from": true,
-	"null": true, "undefined": true, "this": true, "throw": true,
-	"try": true, "catch": true, "finally": true, "typeof": true,
-	"instanceof": true, "void": true, "delete": true, "yield": true,
-	// Python
-	"def": true, "self": true, "None": true, "True": true, "False": true,
-	"print": true, "raise": true, "with": true, "as": true, "lambda": true,
+	"async": true, "await": true, "null": true, "undefined": true,
+	"this": true, "throw": true, "try": true, "catch": true,
+	"finally": true, "typeof": true, "instanceof": true,
+	"void": true, "delete": true, "yield": true,
+	"while": true,
+	// Python 保留字
+	"def": true, "self": true, "None": true,
+	"raise": true, "with": true, "as": true, "lambda": true,
+	"elif": true, "pass": true,
+	// 多语言共享保留字
+	"var": true, "const": true, "import": true, "return": true,
+	"if": true, "else": true, "for": true, "switch": true,
+	"case": true, "default": true, "break": true, "continue": true,
+	"true": true, "false": true,
 	// Common
 	"get": true, "set": true, "not": true, "and": true, "or": true,
 	"do": true, "end": true, "then": true, "when": true, "is": true,

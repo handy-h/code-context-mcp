@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/handy-h/code-context-mcp/internal/config"
 	"github.com/handy-h/code-context-mcp/internal/embedding"
@@ -42,7 +44,7 @@ func parseIntArg(args map[string]interface{}, key string, defaultVal int) int {
 // RegisterTools 注册所有工具处理器
 func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.IndexManager) {
 	srv.RegisterTool("code_search", handleCodeSearch(cfg, indexMgr))
-	srv.RegisterTool("file_context", handleFileContext())
+	srv.RegisterTool("file_context", handleFileContext(cfg))
 	srv.RegisterTool("index_project", handleIndexProject(cfg, indexMgr))
 	srv.RegisterTool("symbol_search", handleSymbolSearch(indexMgr))
 	srv.RegisterTool("impact_analysis", handleImpactAnalysis(indexMgr))
@@ -71,19 +73,19 @@ func handleCodeSearch(cfg config.Config, indexMgr *indexer.IndexManager) server.
 		// 1. 获取查询向量
 		vector, err := embedding.GetEmbedding(cfg, query)
 		if err != nil {
-			return "", fmt.Errorf("向量化查询失败: %v", err)
+			return "", fmt.Errorf("向量化查询失败: %w", err)
 		}
 
 		// 2. 向量搜索
 		vdb, err := search.NewVectorDB(ctx, cfg)
 		if err != nil {
-			return "", fmt.Errorf("连接向量数据库失败: %v", err)
+			return "", fmt.Errorf("连接向量数据库失败: %w", err)
 		}
 		defer vdb.Close()
 
 		results, err := vdb.Search(ctx, vector, topK)
 		if err != nil {
-			return "", fmt.Errorf("搜索失败: %v", err)
+			return "", fmt.Errorf("搜索失败: %w", err)
 		}
 
 		if len(results) == 0 {
@@ -107,7 +109,7 @@ func handleCodeSearch(cfg config.Config, indexMgr *indexer.IndexManager) server.
 }
 
 // handleFileContext 获取文件完整内容或结构摘要
-func handleFileContext() server.ToolHandler {
+func handleFileContext(cfg config.Config) server.ToolHandler {
 	return func(args map[string]interface{}) (string, error) {
 		filePath, _ := args["file_path"].(string)
 		if filePath == "" {
@@ -119,11 +121,38 @@ func handleFileContext() server.ToolHandler {
 			mode = m
 		}
 
-		slog.Info("file_context", "path", filePath, "mode", mode)
+		// 防止目录遍历：基于项目根目录解析路径
+		root := cfg.ProjectPath
+		if root == "" {
+			var err error
+			root, err = os.Getwd()
+			if err != nil {
+				root = "."
+			}
+		}
 
-		content, err := os.ReadFile(filePath)
+		cleanPath := filepath.Clean(filePath)
+		if strings.HasPrefix(cleanPath, "..") || strings.Contains(cleanPath, "..") {
+			return "", fmt.Errorf("非法文件路径: 包含目录遍历")
+		}
+
+		fullPath := filepath.Join(root, cleanPath)
+		fullPath = filepath.Clean(fullPath)
+
+		rootAbs, err1 := filepath.Abs(root)
+		pathAbs, err2 := filepath.Abs(fullPath)
+		if err1 == nil && err2 == nil {
+			sep := string(filepath.Separator)
+			if !strings.HasPrefix(pathAbs, rootAbs+sep) && pathAbs != rootAbs {
+				return "", fmt.Errorf("文件路径必须在项目目录内")
+			}
+		}
+
+		slog.Info("file_context", "path", fullPath, "mode", mode)
+
+		content, err := os.ReadFile(fullPath)
 		if err != nil {
-			return "", fmt.Errorf("读取文件失败: %v", err)
+			return "", fmt.Errorf("读取文件失败: %w", err)
 		}
 
 		if mode == "summary" {
@@ -131,7 +160,7 @@ func handleFileContext() server.ToolHandler {
 			summary := file.ExtractSummary(string(content), lang, filePath)
 			data, err := json.MarshalIndent(summary, "", "  ")
 			if err != nil {
-				return "", fmt.Errorf("格式化摘要失败: %v", err)
+				return "", fmt.Errorf("格式化摘要失败: %w", err)
 			}
 			return string(data), nil
 		}
@@ -148,6 +177,14 @@ func handleIndexProject(cfg config.Config, indexMgr *indexer.IndexManager) serve
 			return "", fmt.Errorf("path 参数不能为空")
 		}
 
+		info, err := os.Stat(projectPath)
+		if err != nil {
+			return "", fmt.Errorf("项目路径不存在或无法访问: %w", err)
+		}
+		if !info.IsDir() {
+			return "", fmt.Errorf("path 必须是目录")
+		}
+
 		slog.Info("index_project", "path", projectPath)
 
 		ctx, cancel := context.WithTimeout(context.Background(), cfg.IndexTimeout)
@@ -155,7 +192,7 @@ func handleIndexProject(cfg config.Config, indexMgr *indexer.IndexManager) serve
 
 		vdb, err := search.NewVectorDB(ctx, cfg)
 		if err != nil {
-			return "", fmt.Errorf("连接向量数据库失败: %v", err)
+			return "", fmt.Errorf("连接向量数据库失败: %w", err)
 		}
 		defer vdb.Close()
 
@@ -168,7 +205,7 @@ func handleIndexProject(cfg config.Config, indexMgr *indexer.IndexManager) serve
 
 		stats, err := indexer.BuildIndex(ctx, projectPath, cfg, vdb, invIndex)
 		if err != nil {
-			return "", fmt.Errorf("索引构建失败: %v", err)
+			return "", fmt.Errorf("索引构建失败: %w", err)
 		}
 
 		// 保存索引状态
@@ -294,7 +331,7 @@ func handleImpactAnalysis(indexMgr *indexer.IndexManager) server.ToolHandler {
 
 		data, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			return "", fmt.Errorf("格式化影响分析结果失败: %v", err)
+			return "", fmt.Errorf("格式化影响分析结果失败: %w", err)
 		}
 		return string(data), nil
 	}

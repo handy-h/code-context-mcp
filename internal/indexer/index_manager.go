@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -47,7 +48,7 @@ func (mgr *IndexManager) CheckAndAutoIndex(ctx context.Context) error {
 	// 尝试加载索引状态
 	state, err := mgr.stateStore.Load()
 	if err != nil {
-		if err == context.Canceled || err == context.DeadlineExceeded {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return err
 		}
 		// 状态文件不存在或损坏，触发全量构建
@@ -266,10 +267,16 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 		}
 	}
 
-	// 更新索引状态（增量更新的 chunk 数不同于全量构建）
+	// 从向量存储获取精确的总记录数
+	totalChunks, countErr := vdb.Count(ctx)
+	if countErr != nil {
+		slog.Warn("获取向量总数失败，使用估算值", "err", countErr)
+		totalChunks = state.TotalChunks + chunkIdx
+	}
+
 	stats := &IndexStats{
 		TotalFiles:  len(currentMtimes),
-		TotalChunks: state.TotalChunks - len(changedFiles) + chunkIdx,
+		TotalChunks: totalChunks,
 	}
 	if saveErr := mgr.stateStore.SaveFromStats(mgr.projectPath, stats, mgr.cfg.ScanExtensions); saveErr != nil {
 		slog.Warn("保存索引状态失败", "err", saveErr)

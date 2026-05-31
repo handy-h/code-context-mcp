@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/handy-h/code-context-mcp/internal/config"
@@ -44,7 +44,7 @@ func NewZillizVectorDB(ctx context.Context, cfg config.Config) (*VectorDB, error
 		APIKey:  cfg.ZillizToken,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("连接Zilliz失败: %v", err)
+		return nil, fmt.Errorf("连接Zilliz失败: %w", err)
 	}
 	return &VectorDB{client: c, cfg: cfg}, nil
 }
@@ -71,18 +71,24 @@ func (v *VectorDB) DeleteByFile(ctx context.Context, filePath string) error {
 		return nil
 	}
 
-	expr := fmt.Sprintf(`metadata["file"] == "%s"`, strings.ReplaceAll(filePath, `"`, `\"`))
+	expr := fmt.Sprintf(`metadata["file"] == %s`, escapeMilvusString(filePath))
 	if err := v.client.Delete(ctx, v.cfg.CollectionName, "", expr); err != nil {
-		return fmt.Errorf("按文件删除向量失败: %v", err)
+		return fmt.Errorf("按文件删除向量失败: %w", err)
 	}
 	return nil
+}
+
+// escapeMilvusString 对 Milvus 表达式字符串字面量进行安全转义
+func escapeMilvusString(s string) string {
+	// 使用单引号包裹，并将内部单引号转义
+	return strconv.Quote(s)
 }
 
 // EnsureCollection ensures the collection exists and is loaded.
 func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 	has, err := v.client.HasCollection(ctx, v.cfg.CollectionName)
 	if err != nil {
-		return fmt.Errorf("检查集合失败: %v", err)
+		return fmt.Errorf("检查集合失败: %w", err)
 	}
 	if has {
 		return nil
@@ -109,18 +115,18 @@ func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 		)
 
 	if err := v.client.CreateCollection(ctx, schema, 2); err != nil {
-		return fmt.Errorf("创建集合失败: %v", err)
+		return fmt.Errorf("创建集合失败: %w", err)
 	}
 
 	idx := entity.NewGenericIndex("embedding_idx", entity.AUTOINDEX, map[string]string{
 		"metric_type": string(entity.COSINE),
 	})
 	if err := v.client.CreateIndex(ctx, v.cfg.CollectionName, "embedding", idx, false); err != nil {
-		return fmt.Errorf("创建索引失败: %v", err)
+		return fmt.Errorf("创建索引失败: %w", err)
 	}
 
 	if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
-		return fmt.Errorf("加载集合失败: %v", err)
+		return fmt.Errorf("加载集合失败: %w", err)
 	}
 
 	slog.Info("集合创建完成", "name", v.cfg.CollectionName)
@@ -158,12 +164,12 @@ func (v *VectorDB) Search(ctx context.Context, queryVector []float32, topK int) 
 	}
 
 	if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
-		return nil, fmt.Errorf("加载集合失败: %v", err)
+			return nil, fmt.Errorf("加载集合失败: %w", err)
 	}
 
 	sp, err := entity.NewIndexAUTOINDEXSearchParam(1)
 	if err != nil {
-		return nil, fmt.Errorf("创建搜索参数失败: %v", err)
+		return nil, fmt.Errorf("创建搜索参数失败: %w", err)
 	}
 
 	results, err := v.client.Search(
@@ -178,7 +184,7 @@ func (v *VectorDB) Search(ctx context.Context, queryVector []float32, topK int) 
 		sp,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("向量搜索失败: %v", err)
+		return nil, fmt.Errorf("向量搜索失败: %w", err)
 	}
 
 	var searchResults []CodeSearchResult
@@ -207,4 +213,21 @@ func (v *VectorDB) Search(ctx context.Context, queryVector []float32, topK int) 
 	}
 
 	return searchResults, nil
+}
+
+// Count 返回集合中的向量记录数
+func (v *VectorDB) Count(ctx context.Context) (int, error) {
+	stats, err := v.client.GetCollectionStatistics(ctx, v.cfg.CollectionName)
+	if err != nil {
+		return 0, fmt.Errorf("获取集合统计信息失败: %w", err)
+	}
+	countStr, ok := stats["row_count"]
+	if !ok {
+		return 0, fmt.Errorf("集合统计信息中缺少 row_count")
+	}
+	count, err := strconv.Atoi(countStr)
+	if err != nil {
+		return 0, fmt.Errorf("解析集合行数失败: %w", err)
+	}
+	return count, nil
 }

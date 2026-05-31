@@ -11,6 +11,7 @@ type VectorStore interface {
 	EnsureCollection(ctx context.Context) error
 	Insert(ctx context.Context, ids []string, texts []string, vectors [][]float32, metadatas []map[string]interface{}) error
 	Search(ctx context.Context, queryVector []float32, topK int) ([]CodeSearchResult, error)
+	Count(ctx context.Context) (int, error)
 }
 
 // CodeSearchResult 语义搜索结果

@@ -947,21 +947,21 @@ docker run --rm -it \
 
 项目配置了以下 GitHub Actions 工作流：
 
-1. **测试工作流** (`test.yml`)：
-   - 在 push 和 pull request 时运行
-   - 支持 Go 1.25.x 和 1.26.x
-   - 运行 `go vet`、`staticcheck` 和单元测试
+1. **CI 工作流** (`ci.yml`)：
+   - 在 push（main/develop）和 pull request（main）时运行
+   - Go 版本矩阵：1.25、1.26
+   - 运行 `go vet`、golangci-lint 和单元测试
    - 上传覆盖率报告到 Codecov
 
-2. **构建工作流** (`build.yml`)：
-   - 在 push 和 tag 时运行
-   - 为 Linux、macOS、Windows 构建二进制文件
+2. **Docker 工作流** (`docker.yml`)：
+   - 在 push（main/tag）和 pull request（main）时运行
    - 构建多架构 Docker 镜像（linux/amd64, linux/arm64）
+   - 推送到 GitHub Container Registry（ghcr.io）
 
 3. **发布工作流** (`release.yml`)：
    - 在推送 tag 时运行（如 `v1.0.0`）
-   - 使用 GoReleaser 创建 GitHub Release
-   - 发布多平台二进制包和 Docker 镜像
+   - 为 Linux、macOS、Windows 构建二进制文件
+   - 自动生成 checksums，创建 GitHub Release
 
 ### 发布新版本
 

@@ -1,6 +1,7 @@
 package embedding
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,25 +48,25 @@ func (p *OllamaProvider) GetEmbedding(text string) ([]float32, error) {
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("json serialization failed: %v", err)
+		return nil, fmt.Errorf("json serialization failed: %w", err)
 	}
 
 	url := p.url + "/api/embeddings"
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("ollama request failed (please confirm Ollama is running): %v", err)
+		return nil, fmt.Errorf("ollama request failed (please confirm Ollama is running): %w", err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -74,7 +75,7 @@ func (p *OllamaProvider) GetEmbedding(text string) ([]float32, error) {
 
 	var result ollamaResponse
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("json parsing failed: %v, response body: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("json parsing failed: %w, response body: %s", err, string(bodyBytes))
 	}
 
 	if len(result.Embedding) == 0 {
@@ -149,22 +150,22 @@ func (p *OpenAIProvider) GetEmbedding(text string) ([]float32, error) {
 	}
 
 	url := p.baseURL + "/embeddings"
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("OpenAI API request failed: %v", err)
+		return nil, fmt.Errorf("OpenAI API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -173,7 +174,7 @@ func (p *OpenAIProvider) GetEmbedding(text string) ([]float32, error) {
 
 	var result openaiEmbeddingResponse
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("json parsing failed: %v, response body: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("json parsing failed: %w, response body: %s", err, string(bodyBytes))
 	}
 
 	if len(result.Data) == 0 || len(result.Data[0].Embedding) == 0 {
@@ -259,27 +260,26 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("json serialization failed: %v", err)
+		return nil, fmt.Errorf("json serialization failed: %w", err)
 	}
 
-	// Gemini API 使用 URL 参数传递 API 密钥
-	// 格式: https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=API_KEY
-	url := fmt.Sprintf("%s/models/%s:embedContent?key=%s", p.baseURL, p.model, p.apiKey)
-	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonData)))
+	url := fmt.Sprintf("%s/models/%s:embedContent", p.baseURL, p.model)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-goog-api-key", p.apiKey)
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Gemini API request failed: %v", err)
+		return nil, fmt.Errorf("Gemini API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -298,7 +298,7 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 	// 解析响应 - 根据测试输出，响应格式是 {"embedding": {"values": [...]}}
 	var result map[string]interface{}
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("json parsing failed: %v, response body: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("json parsing failed: %w, response body: %s", err, string(bodyBytes))
 	}
 
 	// 提取嵌入向量

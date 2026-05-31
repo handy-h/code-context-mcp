@@ -100,7 +100,7 @@ func runMCPMode(cfg config.Config) {
 		}()
 	}
 
-	srv := server.NewMCPServer(cfg)
+	srv := server.NewMCPServer(cfg, version)
 	tools.RegisterTools(srv, cfg, indexMgr)
 
 	if err := srv.Run(); err != nil {

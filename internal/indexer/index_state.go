@@ -24,12 +24,7 @@ func NewIndexStateStore(projectPath string, statePath string) *IndexStateStore {
 	if statePath == "" {
 		statePath = filepath.Join(projectPath, ".code-context-index-state.json")
 	}
-	if statePath != "" {
-		return &IndexStateStore{filePath: statePath}
-	}
-	return &IndexStateStore{
-		filePath: filepath.Join(projectPath, ".code-context-index-state.json"),
-	}
+	return &IndexStateStore{filePath: statePath}
 }
 
 // Load 从文件加载索引状态
@@ -39,12 +34,12 @@ func (s *IndexStateStore) Load() (*types.IndexState, error) {
 		if os.IsNotExist(err) {
 			return nil, os.ErrNotExist
 		}
-		return nil, fmt.Errorf("读取索引状态文件失败: %v", err)
+		return nil, fmt.Errorf("读取索引状态文件失败: %w", err)
 	}
 
 	var state types.IndexState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("解析索引状态文件失败: %v", err)
+		return nil, fmt.Errorf("解析索引状态文件失败: %w", err)
 	}
 
 	return &state, nil
@@ -54,17 +49,17 @@ func (s *IndexStateStore) Load() (*types.IndexState, error) {
 func (s *IndexStateStore) Save(state *types.IndexState) error {
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化索引状态失败: %v", err)
+		return fmt.Errorf("序列化索引状态失败: %w", err)
 	}
 
 	// 确保目录存在
 	dir := filepath.Dir(s.filePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("创建索引状态目录失败: %v", err)
+		return fmt.Errorf("创建索引状态目录失败: %w", err)
 	}
 
 	if err := os.WriteFile(s.filePath, data, 0644); err != nil {
-		return fmt.Errorf("写入索引状态文件失败: %v", err)
+		return fmt.Errorf("写入索引状态文件失败: %w", err)
 	}
 
 	return nil
@@ -82,7 +77,7 @@ func (s *IndexStateStore) GetCurrentFingerprint(projectPath string, extensions [
 	// 降级为文件 mtime 摘要
 	mtimes, err := scanFileMtimes(projectPath, extensions)
 	if err != nil {
-		return "", nil, fmt.Errorf("计算文件 mtime 摘要失败: %v", err)
+		return "", nil, fmt.Errorf("计算文件 mtime 摘要失败: %w", err)
 	}
 
 	fingerprint := computeMtimeFingerprint(mtimes)
@@ -151,7 +146,7 @@ func computeMtimeFingerprint(mtimes map[string]string) string {
 func (s *IndexStateStore) SaveFromStats(projectPath string, stats *IndexStats, extensions []string) error {
 	fingerprint, mtimes, err := s.GetCurrentFingerprint(projectPath, extensions)
 	if err != nil {
-		return fmt.Errorf("获取索引指纹失败: %v", err)
+		return fmt.Errorf("获取索引指纹失败: %w", err)
 	}
 	state := &types.IndexState{
 		LastIndexedAt: time.Now(),

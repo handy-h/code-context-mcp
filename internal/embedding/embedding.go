@@ -1,6 +1,8 @@
 package embedding
 
 import (
+	"sync"
+
 	"github.com/handy-h/code-context-mcp/internal/config"
 )
 
@@ -17,12 +19,23 @@ type ollamaResponse struct {
 	Embedding []float32 `json:"embedding"`
 }
 
+var (
+	sharedProvider EmbeddingProvider
+	sharedMu       sync.Mutex
+)
+
 // GetEmbedding 获取文本的嵌入向量
-// 每次调用时新建 provider 实例（NewEmbeddingProvider 仅做结构体初始化，开销可忽略）
+// 复用全局 Provider 实例，避免每次调用都新建 HTTP Client
 func GetEmbedding(cfg config.Config, text string) ([]float32, error) {
-	provider, err := NewEmbeddingProvider(cfg)
-	if err != nil {
-		return nil, err
+	sharedMu.Lock()
+	if sharedProvider == nil {
+		var err error
+		sharedProvider, err = NewEmbeddingProvider(cfg)
+		if err != nil {
+			sharedMu.Unlock()
+			return nil, err
+		}
 	}
-	return provider.GetEmbedding(text)
+	sharedMu.Unlock()
+	return sharedProvider.GetEmbedding(text)
 }

@@ -79,11 +79,11 @@ func (s *LocalJSONLStore) EnsureCollection(ctx context.Context) error {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
-		return fmt.Errorf("创建本地向量目录失败: %v", err)
+		return fmt.Errorf("创建本地向量目录失败: %w", err)
 	}
 	file, err := os.OpenFile(s.path, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		return fmt.Errorf("创建本地向量文件失败: %v", err)
+		return fmt.Errorf("创建本地向量文件失败: %w", err)
 	}
 	return file.Close()
 }
@@ -111,7 +111,7 @@ func (s *LocalJSONLStore) DeleteByFile(ctx context.Context, filePath string) err
 	if err := s.writeRecordsLocked(ctx, filtered); err != nil {
 		return err
 	}
-	s.records = append([]localVectorRecord(nil), filtered...)
+	s.records = filtered
 	s.loaded = true
 	return nil
 }
@@ -133,7 +133,7 @@ func (s *LocalJSONLStore) Insert(ctx context.Context, ids []string, texts []stri
 
 	file, err := os.OpenFile(s.path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("打开本地向量文件失败: %v", err)
+		return fmt.Errorf("打开本地向量文件失败: %w", err)
 	}
 	defer file.Close()
 
@@ -150,7 +150,7 @@ func (s *LocalJSONLStore) Insert(ctx context.Context, ids []string, texts []stri
 			Metadata:  metadatas[i],
 		}
 		if err := encoder.Encode(record); err != nil {
-			return fmt.Errorf("写入本地向量失败: %v", err)
+			return fmt.Errorf("写入本地向量失败: %w", err)
 		}
 		if s.loaded {
 			s.records = append(s.records, record)
@@ -226,7 +226,7 @@ func (s *LocalJSONLStore) loadRecordsLocked(ctx context.Context) ([]localVectorR
 			s.loaded = true
 			return s.records, nil
 		}
-		return nil, fmt.Errorf("读取本地向量文件失败: %v", err)
+		return nil, fmt.Errorf("读取本地向量文件失败: %w", err)
 	}
 	defer file.Close()
 
@@ -239,27 +239,41 @@ func (s *LocalJSONLStore) loadRecordsLocked(ctx context.Context) ([]localVectorR
 		}
 		var record localVectorRecord
 		if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
-			return nil, fmt.Errorf("解析本地向量记录失败: %v", err)
+			return nil, fmt.Errorf("解析本地向量记录失败: %w", err)
 		}
 		records = append(records, record)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("扫描本地向量文件失败: %v", err)
+		return nil, fmt.Errorf("扫描本地向量文件失败: %w", err)
 	}
 	s.records = records
 	s.loaded = true
 	return s.records, nil
 }
 
+// Count 返回当前存储的向量记录数
+func (s *LocalJSONLStore) Count(ctx context.Context) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	records, err := s.loadRecordsLocked(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return len(records), nil
+}
+
 func (s *LocalJSONLStore) writeRecordsLocked(ctx context.Context, records []localVectorRecord) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
-		return fmt.Errorf("创建本地向量目录失败: %v", err)
+		return fmt.Errorf("创建本地向量目录失败: %w", err)
 	}
 
 	tmpPath := s.path + ".tmp"
 	file, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("创建本地向量临时文件失败: %v", err)
+		return fmt.Errorf("创建本地向量临时文件失败: %w", err)
 	}
 
 	writer := bufio.NewWriter(file)
@@ -271,7 +285,7 @@ func (s *LocalJSONLStore) writeRecordsLocked(ctx context.Context, records []loca
 		}
 		if err := encoder.Encode(record); err != nil {
 			file.Close()
-			return fmt.Errorf("写入本地向量临时文件失败: %v", err)
+			return fmt.Errorf("写入本地向量临时文件失败: %w", err)
 		}
 	}
 	if err := writer.Flush(); err != nil {

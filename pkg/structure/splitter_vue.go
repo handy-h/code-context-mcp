@@ -130,12 +130,16 @@ func chunkVue(content string, filePath string) []types.CodeChunk {
 
 // ExtractScriptContent 提取 <script> 标签内的内容
 func ExtractScriptContent(scriptBlock string) string {
-	startRe := regexp.MustCompile(`(?i)<script[^>]*>`)
-	endRe := regexp.MustCompile(`(?i)</script\s*>`)
-	startMatch := startRe.FindStringIndex(scriptBlock)
-	endMatch := endRe.FindStringIndex(scriptBlock)
-	if startMatch != nil && endMatch != nil {
-		return scriptBlock[startMatch[1]:endMatch[0]]
+	startMatch := vueScriptRe.FindStringIndex(scriptBlock)
+	if startMatch == nil {
+		return ""
+	}
+	// 查找 startMatch 之后的第一个闭合标签
+	allClose := vueCloseRe.FindAllStringIndex(scriptBlock, -1)
+	for _, m := range allClose {
+		if m[0] >= startMatch[1] {
+			return scriptBlock[startMatch[1]:m[0]]
+		}
 	}
 	return ""
 }

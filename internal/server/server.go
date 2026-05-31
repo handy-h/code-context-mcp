@@ -62,18 +62,20 @@ type toolContent struct {
 
 // MCPServer MCP 服务器
 type MCPServer struct {
-	cfg   config.Config
-	tools map[string]ToolHandler
+	cfg     config.Config
+	version string
+	tools   map[string]ToolHandler
 }
 
 // ToolHandler 工具处理函数
 type ToolHandler func(args map[string]interface{}) (string, error)
 
 // NewMCPServer 创建 MCP 服务器
-func NewMCPServer(cfg config.Config) *MCPServer {
+func NewMCPServer(cfg config.Config, version string) *MCPServer {
 	return &MCPServer{
-		cfg:   cfg,
-		tools: make(map[string]ToolHandler),
+		cfg:     cfg,
+		version: version,
+		tools:   make(map[string]ToolHandler),
 	}
 }
 
@@ -151,7 +153,7 @@ func (s *MCPServer) handleInitialize(req jsonRPCRequest) jsonRPCResponse {
 		},
 	}
 	result.ServerInfo.Name = "code-context-mcp"
-	result.ServerInfo.Version = "1.0.0"
+	result.ServerInfo.Version = s.version
 
 	return jsonRPCResponse{
 		JSONRPC: "2.0",

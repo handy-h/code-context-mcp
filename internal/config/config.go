@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+var collectionNameRe = regexp.MustCompile(`[^a-zA-Z0-9_]`)
+
 // EmbeddingProviderType 嵌入模型提供商类型
 type EmbeddingProviderType string
 
@@ -144,8 +146,7 @@ func normalizeCollectionName(name string) string {
 	original := name
 
 	// 将连字符和其他非法字符替换为下划线
-	re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
-	name = re.ReplaceAllString(name, "_")
+	name = collectionNameRe.ReplaceAllString(name, "_")
 
 	// 确保不以数字开头（如果是，添加前缀 "c_"）
 	if len(name) > 0 && name[0] >= '0' && name[0] <= '9' {
@@ -199,6 +200,7 @@ func getEnvBool(key string, fallback bool) bool {
 	case "false", "0":
 		return false
 	default:
+		fmt.Fprintf(os.Stderr, "警告: 环境变量 %s 的值 %q 无效，使用默认值 %v\n", key, v, fallback)
 		return fallback
 	}
 }
