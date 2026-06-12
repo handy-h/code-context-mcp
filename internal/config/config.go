@@ -104,7 +104,7 @@ func LoadConfig() Config {
 		ZillizToken:     getEnv("ZILLIZ_TOKEN", ""),
 		CollectionName:  collectionName,
 
-		ScanExtensions: getEnvSlice("SCAN_EXTENSIONS", []string{".go", ".vue", ".js", ".ts", ".py", ".md"}),
+		ScanExtensions: getEnvSlice("SCAN_EXTENSIONS", []string{".go", ".vue", ".js", ".ts", ".py", ".md", ".rs"}),
 		ChunkSize:      getEnvInt("CHUNK_SIZE", 800),
 		MaxChunkSize:   getEnvInt("MAX_CHUNK_SIZE", 1500),
 		AutoIndex:      getEnvBool("AUTO_INDEX", true),

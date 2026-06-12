@@ -153,7 +153,7 @@ PROJECT_PATH=/path/to/your/project
 
 | 环境变量           | 默认值                     | 说明                                                                   |
 | ------------------ | -------------------------- | ---------------------------------------------------------------------- |
-| `SCAN_EXTENSIONS`  | `.go,.vue,.js,.ts,.py,.md` | 扫描的文件扩展名                                                       |
+| `SCAN_EXTENSIONS`  | `.go,.vue,.js,.ts,.py,.md,.rs` | 扫描的文件扩展名                                                       |
 | `CHUNK_SIZE`       | `800`                      | 降级切分时的块大小（rune）                                             |
 | `MAX_CHUNK_SIZE`   | `1500`                     | 结构切分后超长块的最大 rune 数                                         |
 | `AUTO_INDEX`       | `true`                     | 是否启用自动索引                                                       |
@@ -261,7 +261,7 @@ COLLECTION_NAME=code_context
 # 索引配置
 # ============================================================
 
-SCAN_EXTENSIONS=.go,.vue,.js,.ts,.py,.md
+SCAN_EXTENSIONS=.go,.vue,.js,.ts,.py,.md,.rs
 CHUNK_SIZE=800
 MAX_CHUNK_SIZE=1500
 AUTO_INDEX=true
@@ -365,7 +365,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
         "ZILLIZ_TOKEN": "your_zilliz_token_here",
         "COLLECTION_NAME": "code_context",
         "PROJECT_PATH": "/path/to/your/project",
-        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md,.rs",
         "CHUNK_SIZE": "800",
         "MAX_CHUNK_SIZE": "1500",
         "AUTO_INDEX": "true"
@@ -392,7 +392,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
         "ZILLIZ_TOKEN": "your_zilliz_token_here",
         "COLLECTION_NAME": "code_context",
         "PROJECT_PATH": "/path/to/your/project",
-        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md,.rs",
         "CHUNK_SIZE": "800",
         "MAX_CHUNK_SIZE": "1500",
         "AUTO_INDEX": "true"
@@ -419,7 +419,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
         "ZILLIZ_TOKEN": "your_zilliz_token_here",
         "COLLECTION_NAME": "code_context",
         "PROJECT_PATH": "/path/to/your/project",
-        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md,.rs",
         "CHUNK_SIZE": "800",
         "MAX_CHUNK_SIZE": "1500",
         "AUTO_INDEX": "true"
@@ -446,7 +446,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
         "ZILLIZ_TOKEN": "your_zilliz_token_here",
         "COLLECTION_NAME": "code_context",
         "PROJECT_PATH": "/path/to/your/project",
-        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md,.rs",
         "CHUNK_SIZE": "800",
         "MAX_CHUNK_SIZE": "1500",
         "AUTO_INDEX": "true"
@@ -473,7 +473,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
         "ZILLIZ_TOKEN": "your_zilliz_token_here",
         "COLLECTION_NAME": "code_context",
         "PROJECT_PATH": "/path/to/your/project",
-        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md",
+        "SCAN_EXTENSIONS": ".go,.vue,.js,.ts,.py,.md,.rs",
         "CHUNK_SIZE": "800",
         "MAX_CHUNK_SIZE": "1500",
         "AUTO_INDEX": "true"
@@ -849,6 +849,7 @@ index_project(path="/path/to/project")
 | TypeScript | `.ts`  | 同 JavaScript                                               |
 | Markdown   | `.md`  | 标题 `#`/`##`/`###`                                         |
 | Python     | `.py`  | `def`, `class`                                              |
+| Rust       | `.rs`  | `fn`, `struct`, `enum`, `trait`, `impl`, `mod`, `type`, `const`, `static`, `macro_rules!` |
 
 ## 项目文档
 

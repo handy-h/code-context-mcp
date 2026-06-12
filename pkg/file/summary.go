@@ -32,6 +32,8 @@ func ExtractSummary(content string, lang string, filePath string) *types.FileSum
 		summarizeMarkdown(content, summary)
 	case "py":
 		summarizePython(content, summary)
+	case "rust":
+		summarizeRust(content, summary)
 	default:
 		// 仅返回基本信息
 	}

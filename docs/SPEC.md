@@ -18,7 +18,7 @@ code-context MCP 服务是为 AI 编码助手提供代码上下文的 MCP (Model
 
 **包含：**
 - 自动索引机制（启动时检测 + 搜索时过期更新）
-- 按代码结构切分（Go/Vue/JS/TS/MD/Py）
+- 按代码结构切分（Go/Vue/JS/TS/MD/Py/Rust）
 - symbol_search 精确符号搜索工具
 - impact_analysis 影响范围分析工具
 - file_context 结构化摘要模式

@@ -29,7 +29,7 @@ type document struct {
 // shouldSkipDir 判断是否应跳过该目录（不参与索引）
 func shouldSkipDir(name string) bool {
 	switch name {
-	case "node_modules", ".git", "dist", ".venv", "vendor", "__pycache__":
+	case "node_modules", ".git", "dist", ".venv", "vendor", "__pycache__", "target":
 		return true
 	}
 	return false

@@ -23,6 +23,8 @@ func DetectLanguage(filePath string) string {
 		return "md"
 	case ".py":
 		return "py"
+	case ".rs":
+		return "rust"
 	default:
 		return ""
 	}
@@ -50,6 +52,8 @@ func SplitByStructure(content string, lang string, filePath string, maxChunkSize
 		chunks = chunkMarkdown(content, filePath)
 	case "py":
 		chunks = chunkPython(content, filePath)
+	case "rust":
+		chunks = chunkRust(content, filePath)
 	default:
 		// 降级为固定字符窗口切分
 		return chunkByFixedSize(content, filePath, maxChunkSize)

@@ -96,7 +96,7 @@ type IndexManager struct {
 
 ### 2.2 StructureSplitter
 
-**语言检测：** `.go`→go, `.vue`→vue, `.js`→js, `.ts`→ts, `.md`→md, `.py`→py
+**语言检测：** `.go`→go, `.vue`→vue, `.js`→js, `.ts`→ts, `.md`→md, `.py`→py, `.rs`→rust
 
 **Go 切分：** 正则匹配 `^func\s+`, `^type\s+\w+\s+struct`, `^type\s+\w+\s+interface`, `^var\s+`, `^const\s+`
 

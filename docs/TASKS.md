@@ -25,13 +25,14 @@
 
 **新增文件：** `structure_splitter.go`
 
-- detectLanguage: .go/.vue/.js/.ts/.md/.py 语言检测
+- detectLanguage: .go/.vue/.js/.ts/.md/.py/.rs 语言检测
 - SplitByStructure: 按语法结构切分，超长块二次切分
 - Go: 按 func/type struct/type interface/var/const 边界切分
 - Vue: 按 template/script/style 块切分，script 内按 JS/TS 切分
 - JS/TS: 按 function/class/export/const 边界切分
 - Markdown: 按标题切分
 - Python: 按 def/class 边界切分
+- Rust: 按 fn/struct/enum/trait/impl/mod/type/const/static/macro_rules! 边界切分
 - 无法识别语言降级为固定字符窗口切分
 
 ### 任务 3：倒排索引实现 [已完成]
@@ -78,7 +79,7 @@
 **新增文件：** `file_summary.go`
 
 - ExtractSummary: 提取文件结构摘要
-- Go/Vue/JS/TS/MD/Py 六种语言的 imports、functions、types 提取
+- Go/Vue/JS/TS/MD/Py/Rust 七种语言的 imports、functions、types 提取
 
 ### 任务 8：symbol_search 工具实现 [已完成]
 

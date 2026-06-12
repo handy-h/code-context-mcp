@@ -83,6 +83,12 @@ func runIndexMode(projectPath string, cfg config.Config) {
 		os.Exit(1)
 	}
 
+	// 保存索引状态
+	stateStore := indexer.NewIndexStateStore(projectPath, cfg.IndexStatePath)
+	if saveErr := stateStore.SaveFromStats(projectPath, stats, cfg.ScanExtensions); saveErr != nil {
+		slog.Warn("保存索引状态失败", "err", saveErr)
+	}
+
 	slog.Info("索引完成", "files", stats.TotalFiles, "chunks", stats.TotalChunks)
 }
 
