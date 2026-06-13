@@ -16,6 +16,7 @@ var (
 	goStructRe    = regexp.MustCompile(`^type\s+(\w+)\s+struct`)
 	goInterfaceRe = regexp.MustCompile(`^type\s+(\w+)\s+interface`)
 	goVarRe       = regexp.MustCompile(`^(var|const)\s+`)
+	goVarSymbolRe = regexp.MustCompile(`^(var|const)\s+(\w+)`)
 )
 
 func chunkGo(content string, filePath string) []types.CodeChunk {
@@ -117,8 +118,7 @@ func isContinuation(lines []string, idx int) bool {
 
 func extractGoVarSymbol(line string) string {
 	// var/const Name = ... 或 var/const ( ...
-	re := regexp.MustCompile(`^(var|const)\s+(\w+)`)
-	if m := re.FindStringSubmatch(line); m != nil {
+	if m := goVarSymbolRe.FindStringSubmatch(line); m != nil {
 		return m[2]
 	}
 	return "variables"

@@ -106,24 +106,9 @@ func summarizeGo(content string, summary *types.FileSummary) {
 	}
 }
 
-// findGoFuncEnd 估算 Go 函数结束行（基于大括号匹配）
+// findGoFuncEnd 估算 Go 函数结束行（基于大括号匹配，感知字符串和注释）
 func findGoFuncEnd(lines []string, startIdx int) int {
-	braceCount := 0
-	foundOpen := false
-	for i := startIdx; i < len(lines); i++ {
-		for _, ch := range lines[i] {
-			if ch == '{' {
-				braceCount++
-				foundOpen = true
-			} else if ch == '}' {
-				braceCount--
-			}
-		}
-		if foundOpen && braceCount == 0 {
-			return i + 1
-		}
-	}
-	return len(lines)
+	return findBlockEnd(lines, startIdx)
 }
 
 // ================= Vue 摘要提取 =================
@@ -184,12 +169,84 @@ func summarizeJSTS(content string, summary *types.FileSummary, lang string) {
 	}
 }
 
-// findJSFuncEnd 估算 JS/TS 函数结束行
+// findJSFuncEnd 估算 JS/TS 函数结束行（基于大括号匹配，感知字符串和注释）
 func findJSFuncEnd(lines []string, startIdx int) int {
+	return findBlockEnd(lines, startIdx)
+}
+
+// findBlockEnd 通用的花括号匹配函数，支持字符串字面量和注释感知
+// 正确处理双引号字符串、反引号字符串、单行注释(//)和多行注释(/* */)中的花括号
+func findBlockEnd(lines []string, startIdx int) int {
 	braceCount := 0
 	foundOpen := false
+	inLineComment := false
+	inBlockComment := false
+	inDoubleQuote := false
+	inBacktick := false
+
 	for i := startIdx; i < len(lines); i++ {
-		for _, ch := range lines[i] {
+		line := lines[i]
+		inLineComment = false // 每行重置单行注释状态
+
+		for j := 0; j < len(line); j++ {
+			ch := line[j]
+
+			// 处理多行注释
+			if inBlockComment {
+				if ch == '*' && j+1 < len(line) && line[j+1] == '/' {
+					inBlockComment = false
+					j++ // 跳过 '/'
+				}
+				continue
+			}
+
+			// 处理单行注释
+			if inLineComment {
+				continue
+			}
+
+			// 处理反引号字符串（Go 原始字符串、JS 模板字面量）
+			if inBacktick {
+				if ch == '`' {
+					inBacktick = false
+				}
+				continue
+			}
+
+			// 处理双引号字符串
+			if inDoubleQuote {
+				if ch == '\\' {
+					j++ // 跳过转义字符
+					continue
+				}
+				if ch == '"' {
+					inDoubleQuote = false
+				}
+				continue
+			}
+
+			// 检测新的注释/字符串开始
+			if ch == '/' && j+1 < len(line) {
+				if line[j+1] == '/' {
+					inLineComment = true
+					continue
+				}
+				if line[j+1] == '*' {
+					inBlockComment = true
+					j++ // 跳过 '*'
+					continue
+				}
+			}
+			if ch == '"' {
+				inDoubleQuote = true
+				continue
+			}
+			if ch == '`' {
+				inBacktick = true
+				continue
+			}
+
+			// 花括号计数
 			if ch == '{' {
 				braceCount++
 				foundOpen = true
@@ -197,6 +254,7 @@ func findJSFuncEnd(lines []string, startIdx int) int {
 				braceCount--
 			}
 		}
+
 		if foundOpen && braceCount == 0 {
 			return i + 1
 		}

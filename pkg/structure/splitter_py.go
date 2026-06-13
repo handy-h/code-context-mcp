@@ -11,8 +11,8 @@ import (
 // 策略：按 def/class 声明边界切分
 
 var (
-	pyFuncRe  = regexp.MustCompile(`^(async\s+)?def\s+(\w+)`)
-	pyClassRe = regexp.MustCompile(`^class\s+(\w+)`)
+	pyFuncRe  = regexp.MustCompile(`^(\s*)(async\s+)?def\s+(\w+)`)
+	pyClassRe = regexp.MustCompile(`^(\s*)(class\s+(\w+))`)
 )
 
 func chunkPython(content string, filePath string) []types.CodeChunk {
@@ -28,9 +28,32 @@ func chunkPython(content string, filePath string) []types.CodeChunk {
 
 	for i, line := range lines {
 		if m := pyFuncRe.FindStringSubmatch(line); m != nil {
-			boundaries = append(boundaries, boundary{i, m[2], "function"})
+			indent := m[1]
+			// 匹配顶层（无缩进）和一级缩进（4空格或1个tab）的定义
+			indentLen := 0
+			for _, ch := range indent {
+				if ch == ' ' {
+					indentLen++
+				} else if ch == '\t' {
+					indentLen += 4
+				}
+			}
+			if indentLen <= 4 {
+				boundaries = append(boundaries, boundary{i, m[3], "function"})
+			}
 		} else if m := pyClassRe.FindStringSubmatch(line); m != nil {
-			boundaries = append(boundaries, boundary{i, m[1], "class"})
+			indent := m[1]
+			indentLen := 0
+			for _, ch := range indent {
+				if ch == ' ' {
+					indentLen++
+				} else if ch == '\t' {
+					indentLen += 4
+				}
+			}
+			if indentLen <= 4 {
+				boundaries = append(boundaries, boundary{i, m[3], "class"})
+			}
 		}
 	}
 

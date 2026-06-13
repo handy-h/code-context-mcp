@@ -84,10 +84,16 @@ func SplitByStructure(content string, lang string, filePath string, maxChunkSize
 // chunkByFixedSize 固定字符窗口切分（降级策略）
 func chunkByFixedSize(content string, filePath string, chunkSize int) []types.CodeChunk {
 	var chunks []types.CodeChunk
-	runes := []rune(content)
 	lines := strings.Split(content, "\n")
 	totalLines := len(lines)
 
+	// 为每行计算 rune 起始偏移量，用于准确定位 chunk 的行号范围
+	lineRuneOffsets := make([]int, totalLines+1)
+	for i, line := range lines {
+		lineRuneOffsets[i+1] = lineRuneOffsets[i] + len([]rune(line)) + 1 // +1 for newline
+	}
+
+	runes := []rune(content)
 	for i := 0; i < len(runes); i += chunkSize {
 		end := i + chunkSize
 		if end > len(runes) {
@@ -97,13 +103,26 @@ func chunkByFixedSize(content string, filePath string, chunkSize int) []types.Co
 		if len(strings.TrimSpace(chunk)) < 10 {
 			continue
 		}
+
+		// 计算该 chunk 对应的行号范围
+		chunkLineStart := 1
+		chunkLineEnd := totalLines
+		for lineIdx := 0; lineIdx < totalLines; lineIdx++ {
+			if lineRuneOffsets[lineIdx+1] > i && chunkLineStart == 1 {
+				chunkLineStart = lineIdx + 1
+			}
+			if lineRuneOffsets[lineIdx] < end {
+				chunkLineEnd = lineIdx + 1
+			}
+		}
+
 		chunks = append(chunks, types.CodeChunk{
 			Content: chunk,
 			Metadata: map[string]interface{}{
 				"file":       filePath,
 				"symbol":     filepath.Base(filePath),
-				"line_start": 1,
-				"line_end":   totalLines,
+				"line_start": chunkLineStart,
+				"line_end":   chunkLineEnd,
 				"type":       "file",
 				"language":   DetectLanguage(filePath),
 			},

@@ -48,6 +48,11 @@ func main() {
 
 	cfg := config.LoadConfig()
 
+	// 验证 embedding 维度配置
+	if _, warning := cfg.ValidateEmbeddingDim(); warning != "" {
+		slog.Warn(warning)
+	}
+
 	// 验证必要配置
 	if cfg.VectorStore == config.VectorStoreZilliz && (cfg.ZillizURI == "" || cfg.ZillizToken == "") {
 		fmt.Fprintln(os.Stderr, "错误: 请配置 ZILLIZ_URI 和 ZILLIZ_TOKEN 环境变量")
@@ -100,7 +105,9 @@ func runMCPMode(cfg config.Config) {
 		// 后台异步构建索引，不阻塞 MCP 服务启动
 		// 避免全量构建耗时超过客户端初始化超时（通常 50s）
 		go func() {
-			if err := indexMgr.CheckAndAutoIndex(ctx); err != nil {
+			autoCtx, cancel := context.WithTimeout(ctx, cfg.IndexTimeout)
+			defer cancel()
+			if err := indexMgr.CheckAndAutoIndex(autoCtx); err != nil {
 				slog.Error("自动索引失败", "err", err)
 			}
 		}()

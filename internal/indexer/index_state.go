@@ -1,6 +1,7 @@
 package indexer
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -67,10 +68,18 @@ func (s *IndexStateStore) Save(state *types.IndexState) error {
 
 // GetCurrentFingerprint 计算当前项目的索引指纹
 // 优先尝试 git commit hash，失败则降级为文件 mtime 摘要
+// 如果 git 工作树有未提交变更，使用 mtime 指纹确保准确性
 func (s *IndexStateStore) GetCurrentFingerprint(projectPath string, extensions []string) (string, map[string]string, error) {
 	// 优先尝试 git commit hash
-	if hash, err := getGitCommitHash(projectPath); err == nil && hash != "" {
+	hash, hashErr := getGitCommitHash(projectPath)
+	if hashErr == nil && hash != "" {
 		mtimes, _ := scanFileMtimes(projectPath, extensions)
+		// 检查工作树是否有未提交变更
+		if isGitDirty(projectPath) {
+			// 有脏文件，使用 mtime 指纹以确保变更被检测到
+			fingerprint := computeMtimeFingerprint(mtimes)
+			return fingerprint, mtimes, nil
+		}
 		return hash, mtimes, nil
 	}
 
@@ -84,15 +93,28 @@ func (s *IndexStateStore) GetCurrentFingerprint(projectPath string, extensions [
 	return fingerprint, mtimes, nil
 }
 
-// getGitCommitHash 获取 git commit hash
+// getGitCommitHash 获取 git commit hash（5秒超时）
 func getGitCommitHash(projectPath string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
 	cmd.Dir = projectPath
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+// isGitDirty 检查 git 工作树是否有未提交的变更
+func isGitDirty(projectPath string) bool {
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = projectPath
+	output, err := cmd.Output()
+	if err != nil {
+		return false // 无法检测时假定干净
+	}
+	return len(strings.TrimSpace(string(output))) > 0
 }
 
 // scanFileMtimes 扫描文件修改时间

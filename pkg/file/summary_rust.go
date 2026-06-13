@@ -62,21 +62,7 @@ func summarizeRust(content string, summary *types.FileSummary) {
 	}
 }
 
+// findRustBlockEnd 估算 Rust 代码块结束行（使用通用花括号匹配，感知字符串和注释）
 func findRustBlockEnd(lines []string, startIdx int) int {
-	braceCount := 0
-	foundOpen := false
-	for i := startIdx; i < len(lines); i++ {
-		for _, ch := range lines[i] {
-			if ch == '{' {
-				braceCount++
-				foundOpen = true
-			} else if ch == '}' {
-				braceCount--
-			}
-		}
-		if foundOpen && braceCount == 0 {
-			return i + 1
-		}
-	}
-	return len(lines)
+	return findBlockEnd(lines, startIdx)
 }

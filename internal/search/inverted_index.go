@@ -304,9 +304,9 @@ func extractContext(lines []string, targetIdx int, n int) string {
 	}
 
 	context := strings.Join(lines[start:end], "\n")
-	// 截断过长的上下文
-	if len(context) > 200 {
-		context = context[:200] + "..."
+	// 截断过长的上下文（按 rune 避免切断 UTF-8 多字节字符）
+	if runeCount := len([]rune(context)); runeCount > 200 {
+		context = string([]rune(context)[:200]) + "..."
 	}
 	return context
 }

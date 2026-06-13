@@ -79,7 +79,6 @@ func (mgr *IndexManager) CheckAndAutoIndex(ctx context.Context) error {
 	// 指纹不匹配（有新提交或文件变更），走增量更新而非全量重建
 	// fullBuild 会删除整个向量库再重建，对活跃项目代价过高
 	slog.Info("索引已过期（指纹不匹配），开始增量更新")
-	go mgr.rebuildInvertedIndex(ctx)
 	if err := mgr.incrementalUpdate(ctx); err != nil {
 		slog.Warn("增量更新失败，回退到全量重建", "err", err)
 		return mgr.fullBuild(ctx)
@@ -87,6 +86,8 @@ func (mgr *IndexManager) CheckAndAutoIndex(ctx context.Context) error {
 	mgr.mu.Lock()
 	mgr.stale = false
 	mgr.mu.Unlock()
+	// 增量更新完成后再重建倒排索引，避免并发冲突
+	go mgr.rebuildInvertedIndex(ctx)
 	return nil
 }
 

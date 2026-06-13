@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 type EmbeddingProvider interface {
 	// GetEmbedding 获取文本的嵌入向量
 	GetEmbedding(text string) ([]float32, error)
+	// GetBatchEmbeddings 批量获取文本的嵌入向量
+	GetBatchEmbeddings(texts []string) ([][]float32, error)
 	// GetDimension 获取嵌入向量的维度
 	GetDimension() int
 }
@@ -88,6 +91,19 @@ func (p *OllamaProvider) GetEmbedding(text string) ([]float32, error) {
 // GetDimension 返回向量维度
 func (p *OllamaProvider) GetDimension() int {
 	return p.dim
+}
+
+// GetBatchEmbeddings 批量获取文本的嵌入向量（Ollama 不支持批量 API，逐个调用）
+func (p *OllamaProvider) GetBatchEmbeddings(texts []string) ([][]float32, error) {
+	results := make([][]float32, 0, len(texts))
+	for _, text := range texts {
+		vec, err := p.GetEmbedding(text)
+		if err != nil {
+			return nil, fmt.Errorf("batch embedding failed at text %d: %w", len(results), err)
+		}
+		results = append(results, vec)
+	}
+	return results, nil
 }
 
 // OpenAIProvider OpenAI 兼容 API 嵌入模型提供者
@@ -187,6 +203,63 @@ func (p *OpenAIProvider) GetEmbedding(text string) ([]float32, error) {
 // GetDimension 返回向量维度
 func (p *OpenAIProvider) GetDimension() int {
 	return p.dim
+}
+
+// GetBatchEmbeddings 批量获取文本的嵌入向量（OpenAI 支持真正的批量请求）
+func (p *OpenAIProvider) GetBatchEmbeddings(texts []string) ([][]float32, error) {
+	if p.apiKey == "" {
+		return nil, fmt.Errorf("OpenAI API key is required")
+	}
+
+	reqBody := openaiEmbeddingRequest{
+		Model:      p.model,
+		Input:      texts,
+		Dimensions: p.dim,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("json serialization failed: %v", err)
+	}
+
+	url := p.baseURL + "/embeddings"
+	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("OpenAI API request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("OpenAI API returned error status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result openaiEmbeddingResponse
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		return nil, fmt.Errorf("json parsing failed: %w, response body: %s", err, string(bodyBytes))
+	}
+
+	// Sort by index to maintain order
+	sort.Slice(result.Data, func(i, j int) bool {
+		return result.Data[i].Index < result.Data[j].Index
+	})
+
+	results := make([][]float32, len(result.Data))
+	for i, d := range result.Data {
+		results[i] = d.Embedding
+	}
+	return results, nil
 }
 
 // GeminiProvider Google Gemini 嵌入模型提供者
@@ -308,6 +381,19 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 // GetDimension 返回向量维度
 func (p *GeminiProvider) GetDimension() int {
 	return p.dim
+}
+
+// GetBatchEmbeddings 批量获取文本的嵌入向量（Gemini embedContent 是单文本 API，逐个调用）
+func (p *GeminiProvider) GetBatchEmbeddings(texts []string) ([][]float32, error) {
+	results := make([][]float32, 0, len(texts))
+	for _, text := range texts {
+		vec, err := p.GetEmbedding(text)
+		if err != nil {
+			return nil, fmt.Errorf("batch embedding failed at text %d: %w", len(results), err)
+		}
+		results = append(results, vec)
+	}
+	return results, nil
 }
 
 // NewEmbeddingProvider 创建嵌入模型提供者

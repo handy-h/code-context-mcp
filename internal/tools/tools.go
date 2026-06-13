@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/handy-h/code-context-mcp/internal/config"
 	"github.com/handy-h/code-context-mcp/internal/embedding"
@@ -41,9 +42,36 @@ func parseIntArg(args map[string]interface{}, key string, defaultVal int) int {
 	return defaultVal
 }
 
+// vdbFactory 共享向量数据库实例的工厂函数类型
+type vdbFactory func(ctx context.Context) (search.VectorStore, error)
+
+var (
+	sharedVDB search.VectorStore
+	vdbMu     sync.Mutex
+	vdbInited bool
+)
+
+// getSharedVDB 获取或创建共享 VectorDB 实例，避免每次搜索请求新建连接
+func getSharedVDB(cfg config.Config) vdbFactory {
+	return func(ctx context.Context) (search.VectorStore, error) {
+		vdbMu.Lock()
+		defer vdbMu.Unlock()
+		if !vdbInited {
+			var err error
+			sharedVDB, err = search.NewVectorDB(ctx, cfg)
+			if err != nil {
+				return nil, err
+			}
+			vdbInited = true
+		}
+		return sharedVDB, nil
+	}
+}
+
 // RegisterTools 注册所有工具处理器
 func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.IndexManager) {
-	srv.RegisterTool("code_search", handleCodeSearch(cfg, indexMgr))
+	factory := getSharedVDB(cfg)
+	srv.RegisterTool("code_search", handleCodeSearch(cfg, indexMgr, factory))
 	srv.RegisterTool("file_context", handleFileContext(cfg))
 	srv.RegisterTool("index_project", handleIndexProject(cfg, indexMgr))
 	srv.RegisterTool("symbol_search", handleSymbolSearch(indexMgr))
@@ -51,7 +79,7 @@ func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.I
 }
 
 // handleCodeSearch 语义搜索代码
-func handleCodeSearch(cfg config.Config, indexMgr *indexer.IndexManager) server.ToolHandler {
+func handleCodeSearch(cfg config.Config, indexMgr *indexer.IndexManager, getVDB vdbFactory) server.ToolHandler {
 	return func(args map[string]interface{}) (string, error) {
 		query, _ := args["query"].(string)
 		if query == "" {
@@ -76,12 +104,11 @@ func handleCodeSearch(cfg config.Config, indexMgr *indexer.IndexManager) server.
 			return "", fmt.Errorf("向量化查询失败: %w", err)
 		}
 
-		// 2. 向量搜索
-		vdb, err := search.NewVectorDB(ctx, cfg)
+		// 2. 向量搜索（使用共享 VectorDB 实例）
+		vdb, err := getVDB(ctx)
 		if err != nil {
 			return "", fmt.Errorf("连接向量数据库失败: %w", err)
 		}
-		defer vdb.Close()
 
 		results, err := vdb.Search(ctx, vector, topK)
 		if err != nil {
@@ -139,9 +166,20 @@ func handleFileContext(cfg config.Config) server.ToolHandler {
 		fullPath := filepath.Join(root, cleanPath)
 		fullPath = filepath.Clean(fullPath)
 
+		// 解析符号链接，防止通过 symlink 绕过路径限制
 		rootAbs, err1 := filepath.Abs(root)
 		pathAbs, err2 := filepath.Abs(fullPath)
 		if err1 == nil && err2 == nil {
+			// 尝试解析符号链接获取真实路径
+			realPath, evalErr := filepath.EvalSymlinks(pathAbs)
+			if evalErr == nil {
+				pathAbs = realPath
+			}
+			realRoot, rootEvalErr := filepath.EvalSymlinks(rootAbs)
+			if rootEvalErr == nil {
+				rootAbs = realRoot
+			}
+
 			sep := string(filepath.Separator)
 			if !strings.HasPrefix(pathAbs, rootAbs+sep) && pathAbs != rootAbs {
 				return "", fmt.Errorf("文件路径必须在项目目录内")

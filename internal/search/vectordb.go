@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/handy-h/code-context-mcp/internal/config"
@@ -15,8 +17,10 @@ import (
 
 // VectorDB wraps a Zilliz Cloud vector database client.
 type VectorDB struct {
-	client client.Client
-	cfg    config.Config
+	client           client.Client
+	cfg              config.Config
+	mu               sync.Mutex
+	collectionLoaded bool
 }
 
 // NewVectorDB creates the configured vector store backend.
@@ -79,9 +83,11 @@ func (v *VectorDB) DeleteByFile(ctx context.Context, filePath string) error {
 }
 
 // escapeMilvusString 对 Milvus 表达式字符串字面量进行安全转义
+// Milvus 使用双引号字符串，需要转义反斜杠和双引号
 func escapeMilvusString(s string) string {
-	// 使用单引号包裹，并将内部单引号转义
-	return strconv.Quote(s)
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return `"` + s + `"`
 }
 
 // EnsureCollection ensures the collection exists and is loaded.
@@ -128,6 +134,7 @@ func (v *VectorDB) EnsureCollection(ctx context.Context) error {
 	if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
 		return fmt.Errorf("加载集合失败: %w", err)
 	}
+	v.collectionLoaded = true
 
 	slog.Info("集合创建完成", "name", v.cfg.CollectionName)
 	return nil
@@ -163,8 +170,16 @@ func (v *VectorDB) Search(ctx context.Context, queryVector []float32, topK int) 
 		topK = 5
 	}
 
-	if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
-		return nil, fmt.Errorf("加载集合失败: %w", err)
+	v.mu.Lock()
+	loaded := v.collectionLoaded
+	v.mu.Unlock()
+	if !loaded {
+		if err := v.client.LoadCollection(ctx, v.cfg.CollectionName, false); err != nil {
+			return nil, fmt.Errorf("加载集合失败: %w", err)
+		}
+		v.mu.Lock()
+		v.collectionLoaded = true
+		v.mu.Unlock()
 	}
 
 	sp, err := entity.NewIndexAUTOINDEXSearchParam(1)

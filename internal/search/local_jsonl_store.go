@@ -253,16 +253,12 @@ func (s *LocalJSONLStore) loadRecordsLocked(ctx context.Context) ([]localVectorR
 
 // Count 返回当前存储的向量记录数
 func (s *LocalJSONLStore) Count(ctx context.Context) (int, error) {
+	if err := s.ensureLoaded(ctx); err != nil {
+		return 0, err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if err := ctx.Err(); err != nil {
-		return 0, err
-	}
-	records, err := s.loadRecordsLocked(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return len(records), nil
+	return len(s.records), nil
 }
 
 func (s *LocalJSONLStore) writeRecordsLocked(ctx context.Context, records []localVectorRecord) error {

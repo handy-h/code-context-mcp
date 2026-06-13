@@ -116,6 +116,37 @@ func LoadConfig() Config {
 	}
 }
 
+// ValidateEmbeddingDim 根据 provider 和 model 验证/建议 embedding 维度
+// 返回 expected dim (0 表示未知), 以及警告消息
+func (c Config) ValidateEmbeddingDim() (int, string) {
+	switch c.EmbeddingProvider {
+	case ProviderOllama:
+		if c.OllamaModel == "nomic-embed-text" || strings.Contains(c.OllamaModel, "nomic-embed-text") {
+			if c.EmbeddingDim != 768 {
+				return 768, fmt.Sprintf("nomic-embed-text 模型输出 768 维向量，当前配置 EMBEDDING_DIM=%d，建议修改为 768", c.EmbeddingDim)
+			}
+		}
+	case ProviderOpenAI:
+		knownDims := map[string]int{
+			"text-embedding-ada-002":      1536,
+			"text-embedding-3-small":     1536,
+			"text-embedding-3-large":     3072,
+		}
+		if expected, ok := knownDims[c.OpenAIModel]; ok {
+			if c.EmbeddingDim != expected {
+				return expected, fmt.Sprintf("%s 模型输出 %d 维向量，当前配置 EMBEDDING_DIM=%d，建议修改", c.OpenAIModel, expected, c.EmbeddingDim)
+			}
+		}
+	case ProviderGemini:
+		if strings.Contains(c.GeminiModel, "embedding-001") {
+			if c.EmbeddingDim != 768 {
+				return 768, fmt.Sprintf("embedding-001 模型输出 768 维向量，当前配置 EMBEDDING_DIM=%d，建议修改为 768", c.EmbeddingDim)
+			}
+		}
+	}
+	return 0, ""
+}
+
 func parseVectorStore(value string) VectorStoreType {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "zilliz", "milvus":

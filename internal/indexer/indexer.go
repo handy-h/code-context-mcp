@@ -11,6 +11,7 @@ import (
 	"github.com/handy-h/code-context-mcp/internal/config"
 	"github.com/handy-h/code-context-mcp/internal/embedding"
 	"github.com/handy-h/code-context-mcp/internal/search"
+	"github.com/handy-h/code-context-mcp/internal/types"
 	"github.com/handy-h/code-context-mcp/pkg/structure"
 )
 
@@ -71,6 +72,51 @@ func ScanFiles(root string, extensions []string) ([]document, error) {
 	return docs, err
 }
 
+// WalkFiles 流式遍历文件，对每个文件调用 callback 处理后立即释放内容
+// 避免将所有文件内容加载到内存
+func WalkFiles(root string, extensions []string, callback func(relPath string, content []byte) error) error {
+	extMap := make(map[string]bool, len(extensions))
+	for _, ext := range extensions {
+		extMap[ext] = true
+	}
+
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			if shouldSkipDir(info.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(path))
+		if !extMap[ext] {
+			return nil
+		}
+
+		// 限制单文件大小（10MB）
+		if info.Size() > 10*1024*1024 {
+			slog.Warn("文件过大，跳过", "path", path, "size", info.Size())
+			return nil
+		}
+
+		content, readErr := os.ReadFile(path)
+		if readErr != nil {
+			slog.Warn("读取文件失败", "path", path, "err", readErr)
+			return nil
+		}
+
+		relPath, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			relPath = path
+		}
+
+		return callback(relPath, content)
+	})
+}
+
 const batchSize = 500
 
 // flushBatch 将累积的向量批量写入存储
@@ -105,6 +151,7 @@ func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb 
 	}
 
 	// 4. 切分 + 向量化（分批写入，避免大项目 OOM）
+	const embeddingBatchSize = 100
 	var allVectors [][]float32
 	var allTexts []string
 	var allIDs []string
@@ -112,6 +159,60 @@ func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb 
 
 	chunkIdx := 0
 	totalChunks := 0
+
+	// 用于批量 embedding 的临时缓冲
+	var embedBatch []string
+	var embedChunks []types.CodeChunk
+	var embedFiles []string
+
+	flushEmbedBatch := func() error {
+		if len(embedBatch) == 0 {
+			return nil
+		}
+		vectors, err := embedding.GetBatchEmbeddings(cfg, embedBatch)
+		if err != nil {
+			// 批量失败，逐条重试以保证最大成功数
+			slog.Warn("批量向量化失败，逐条重试", "err", err)
+			for j, text := range embedBatch {
+				vector, singleErr := embedding.GetEmbedding(cfg, text)
+				if singleErr != nil {
+					slog.Warn("向量化失败", "file", embedFiles[j], "err", singleErr)
+					continue
+				}
+				chunkIdx++
+				totalChunks++
+				allIDs = append(allIDs, fmt.Sprintf("doc_%d", chunkIdx))
+				allTexts = append(allTexts, text)
+				allVectors = append(allVectors, vector)
+				allMetadatas = append(allMetadatas, embedChunks[j].Metadata)
+			}
+		} else {
+			for j, vector := range vectors {
+				chunkIdx++
+				totalChunks++
+				allIDs = append(allIDs, fmt.Sprintf("doc_%d", chunkIdx))
+				allTexts = append(allTexts, embedBatch[j])
+				allVectors = append(allVectors, vector)
+				allMetadatas = append(allMetadatas, embedChunks[j].Metadata)
+			}
+		}
+		embedBatch = embedBatch[:0]
+		embedChunks = embedChunks[:0]
+		embedFiles = embedFiles[:0]
+
+		// 如果累积的向量达到 vdb 批量大小，刷入存储
+		if len(allVectors) >= batchSize {
+			if err := flushBatch(ctx, vdb, allIDs, allTexts, allVectors, allMetadatas); err != nil {
+				return err
+			}
+			allIDs = allIDs[:0]
+			allTexts = allTexts[:0]
+			allVectors = allVectors[:0]
+			allMetadatas = allMetadatas[:0]
+		}
+		return nil
+	}
+
 	for _, doc := range docs {
 		lang := structure.DetectLanguage(doc.FilePath)
 		chunks := structure.SplitByStructure(doc.Content, lang, doc.FilePath, cfg.MaxChunkSize)
@@ -122,29 +223,21 @@ func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb 
 		}
 
 		for _, chunk := range chunks {
-			vector, err := embedding.GetEmbedding(cfg, chunk.Content)
-			if err != nil {
-				slog.Warn("向量化失败", "file", doc.FilePath, "err", err)
-				continue
-			}
+			embedBatch = append(embedBatch, chunk.Content)
+			embedChunks = append(embedChunks, chunk)
+			embedFiles = append(embedFiles, doc.FilePath)
 
-			chunkIdx++
-			totalChunks++
-			allIDs = append(allIDs, fmt.Sprintf("doc_%d", chunkIdx))
-			allTexts = append(allTexts, chunk.Content)
-			allVectors = append(allVectors, vector)
-			allMetadatas = append(allMetadatas, chunk.Metadata)
-
-			if len(allVectors) >= batchSize {
-				if err := flushBatch(ctx, vdb, allIDs, allTexts, allVectors, allMetadatas); err != nil {
+			if len(embedBatch) >= embeddingBatchSize {
+				if err := flushEmbedBatch(); err != nil {
 					return nil, err
 				}
-				allIDs = allIDs[:0]
-				allTexts = allTexts[:0]
-				allVectors = allVectors[:0]
-				allMetadatas = allMetadatas[:0]
 			}
 		}
+	}
+
+	// 刷新剩余的 embedding 批次
+	if err := flushEmbedBatch(); err != nil {
+		return nil, err
 	}
 
 	// 5. 写入剩余批次
