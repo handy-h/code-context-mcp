@@ -30,9 +30,14 @@ func main() {
 
 	// 加载 .env 配置文件
 	// 按优先级尝试：1.当前目录 2.可执行文件所在目录
-	_ = godotenv.Load(".env")
+	if err := godotenv.Load(".env"); err != nil && !os.IsNotExist(err) {
+		slog.Warn("加载 .env 文件失败", "path", ".env", "err", err)
+	}
 	if exe, err := os.Executable(); err == nil {
-		_ = godotenv.Load(filepath.Join(filepath.Dir(exe), ".env"))
+		envPath := filepath.Join(filepath.Dir(exe), ".env")
+		if err := godotenv.Load(envPath); err != nil && !os.IsNotExist(err) {
+			slog.Warn("加载 .env 文件失败", "path", envPath, "err", err)
+		}
 	}
 
 	// 命令行参数

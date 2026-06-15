@@ -36,6 +36,9 @@ func shouldSkipDir(name string) bool {
 	return false
 }
 
+// maxFileSize 单文件最大索引大小（10MB）
+const maxFileSize = 10 * 1024 * 1024
+
 // ScanFiles 扫描指定目录下的目标文件
 func ScanFiles(root string, extensions []string) ([]document, error) {
 	var docs []document
@@ -53,6 +56,11 @@ func ScanFiles(root string, extensions []string) ([]document, error) {
 		ext := strings.ToLower(filepath.Ext(path))
 		for _, target := range extensions {
 			if ext == target {
+				// 限制单文件大小
+				if info.Size() > maxFileSize {
+					slog.Warn("文件过大，跳过", "path", path, "size", info.Size())
+					break
+				}
 				content, err := os.ReadFile(path)
 				if err != nil {
 					slog.Warn("读取文件失败", "path", path, "err", err)
@@ -117,6 +125,42 @@ func WalkFiles(root string, extensions []string, callback func(relPath string, c
 	})
 }
 
+// ScanSpecificFiles 仅扫描指定的文件列表（相对路径），避免全量扫描整个项目
+func ScanSpecificFiles(root string, filePaths []string) ([]document, error) {
+	var docs []document
+	for _, relPath := range filePaths {
+		fullPath := filepath.Join(root, relPath)
+
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				// 文件已被删除，跳过
+				continue
+			}
+			slog.Warn("获取文件信息失败", "path", fullPath, "err", err)
+			continue
+		}
+		if info.IsDir() {
+			continue
+		}
+
+		// 限制单文件大小（10MB）
+		if info.Size() > 10*1024*1024 {
+			slog.Warn("文件过大，跳过", "path", fullPath, "size", info.Size())
+			continue
+		}
+
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			slog.Warn("读取文件失败", "path", fullPath, "err", err)
+			continue
+		}
+
+		docs = append(docs, document{FilePath: relPath, Content: string(content)})
+	}
+	return docs, nil
+}
+
 const batchSize = 500
 
 // flushBatch 将累积的向量批量写入存储
@@ -169,12 +213,12 @@ func BuildIndex(ctx context.Context, projectPath string, cfg config.Config, vdb 
 		if len(embedBatch) == 0 {
 			return nil
 		}
-		vectors, err := embedding.GetBatchEmbeddings(cfg, embedBatch)
+		vectors, err := embedding.GetBatchEmbeddings(ctx, cfg, embedBatch)
 		if err != nil {
 			// 批量失败，逐条重试以保证最大成功数
 			slog.Warn("批量向量化失败，逐条重试", "err", err)
 			for j, text := range embedBatch {
-				vector, singleErr := embedding.GetEmbedding(cfg, text)
+				vector, singleErr := embedding.GetEmbedding(ctx, cfg, text)
 				if singleErr != nil {
 					slog.Warn("向量化失败", "file", embedFiles[j], "err", singleErr)
 					continue

@@ -49,7 +49,10 @@ jobs:
         go-version: '1.25'
 
     - name: Run golangci-lint
-      run: go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 run ./...
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: v1.64.8
+        args: run ./...
 
   build:
     name: Build

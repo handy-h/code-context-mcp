@@ -30,7 +30,7 @@ type localVectorRecord struct {
 // NewLocalJSONLStore creates a local JSONL-backed vector store.
 func NewLocalJSONLStore(path string) (*LocalJSONLStore, error) {
 	if path == "" {
-		return nil, fmt.Errorf("VECTOR_STORE_PATH is required for local-jsonl vector store")
+		return nil, fmt.Errorf("本地 JSONL 向量存储需要配置 VECTOR_STORE_PATH")
 	}
 	if absPath, err := filepath.Abs(path); err == nil {
 		path = absPath
@@ -119,7 +119,7 @@ func (s *LocalJSONLStore) DeleteByFile(ctx context.Context, filePath string) err
 // Insert appends vectors to the JSONL file.
 func (s *LocalJSONLStore) Insert(ctx context.Context, ids []string, texts []string, vectors [][]float32, metadatas []map[string]interface{}) error {
 	if len(ids) != len(texts) || len(ids) != len(vectors) || len(ids) != len(metadatas) {
-		return fmt.Errorf("vector insert data length mismatch")
+		return fmt.Errorf("向量插入数据长度不一致")
 	}
 
 	s.mu.Lock()
@@ -172,7 +172,7 @@ func (s *LocalJSONLStore) Search(ctx context.Context, queryVector []float32, top
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	results := make([]CodeSearchResult, 0, minInt(topK, len(s.records)))
+	results := make([]CodeSearchResult, 0, min(topK, len(s.records)))
 	for _, record := range s.records {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -311,11 +311,4 @@ func cosineSimilarity(a, b []float32) (float32, bool) {
 		return 0, false
 	}
 	return float32(dot / (math.Sqrt(normA) * math.Sqrt(normB))), true
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

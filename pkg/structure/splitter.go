@@ -94,6 +94,9 @@ func chunkByFixedSize(content string, filePath string, chunkSize int) []types.Co
 	}
 
 	runes := []rune(content)
+
+	// 双指针法：lineIdx 跟踪当前行，避免每次 chunk 都遍历所有行
+	lineIdx := 0
 	for i := 0; i < len(runes); i += chunkSize {
 		end := i + chunkSize
 		if end > len(runes) {
@@ -104,16 +107,16 @@ func chunkByFixedSize(content string, filePath string, chunkSize int) []types.Co
 			continue
 		}
 
-		// 计算该 chunk 对应的行号范围
-		chunkLineStart := 1
-		chunkLineEnd := totalLines
-		for lineIdx := 0; lineIdx < totalLines; lineIdx++ {
-			if lineRuneOffsets[lineIdx+1] > i && chunkLineStart == 1 {
-				chunkLineStart = lineIdx + 1
-			}
-			if lineRuneOffsets[lineIdx] < end {
-				chunkLineEnd = lineIdx + 1
-			}
+		// 前移 lineIdx 到 chunk 起始行
+		for lineIdx < totalLines && lineRuneOffsets[lineIdx+1] <= i {
+			lineIdx++
+		}
+		chunkLineStart := lineIdx + 1
+
+		// 找到 chunk 结束行
+		chunkLineEnd := chunkLineStart
+		for chunkLineEnd < totalLines && lineRuneOffsets[chunkLineEnd] < end {
+			chunkLineEnd++
 		}
 
 		chunks = append(chunks, types.CodeChunk{

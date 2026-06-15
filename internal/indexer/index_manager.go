@@ -213,15 +213,10 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 		mgr.invIndex.RemoveFile(filePath)
 	}
 
-	// 重新索引变更文件
-	docs, err := ScanFiles(mgr.projectPath, mgr.cfg.ScanExtensions)
+	// 重新索引变更文件（仅读取变更文件，避免全量扫描）
+	docs, err := ScanSpecificFiles(mgr.projectPath, changedFiles)
 	if err != nil {
 		return err
-	}
-
-	changedSet := make(map[string]bool, len(changedFiles))
-	for _, f := range changedFiles {
-		changedSet[f] = true
 	}
 
 	var allVectors [][]float32
@@ -235,10 +230,6 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 	idPrefix := time.Now().UnixMilli()
 
 	for _, doc := range docs {
-		if !changedSet[doc.FilePath] {
-			continue
-		}
-
 		lang := structure.DetectLanguage(doc.FilePath)
 		chunks := structure.SplitByStructure(doc.Content, lang, doc.FilePath, mgr.cfg.MaxChunkSize)
 
@@ -246,7 +237,7 @@ func (mgr *IndexManager) incrementalUpdate(ctx context.Context) error {
 		mgr.invIndex.BuildFromChunks(chunks, doc.FilePath)
 
 		for _, chunk := range chunks {
-			vector, err := embedding.GetEmbedding(mgr.cfg, chunk.Content)
+			vector, err := embedding.GetEmbedding(ctx, mgr.cfg, chunk.Content)
 			if err != nil {
 				slog.Warn("向量化失败", "file", doc.FilePath, "err", err)
 				continue

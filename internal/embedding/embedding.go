@@ -1,6 +1,7 @@
 package embedding
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"math"
@@ -26,7 +27,8 @@ type ollamaResponse struct {
 
 var (
 	sharedProvider EmbeddingProvider
-	sharedMu       sync.Mutex
+	providerOnce   sync.Once
+	providerErr    error
 )
 
 const (
@@ -34,29 +36,40 @@ const (
 	baseRetryDelay = 1 * time.Second
 )
 
+// getSharedProvider 获取或创建全局 Provider 实例（线程安全，仅初始化一次）
+func getSharedProvider(cfg config.Config) (EmbeddingProvider, error) {
+	providerOnce.Do(func() {
+		sharedProvider, providerErr = NewEmbeddingProvider(cfg)
+	})
+	return sharedProvider, providerErr
+}
+
 // GetEmbedding 获取文本的嵌入向量
 // 复用全局 Provider 实例，避免每次调用都新建 HTTP Client
 // 内置指数退避重试机制，处理瞬态网络错误和限流
-func GetEmbedding(cfg config.Config, text string) ([]float32, error) {
-	sharedMu.Lock()
-	if sharedProvider == nil {
-		var err error
-		sharedProvider, err = NewEmbeddingProvider(cfg)
-		if err != nil {
-			sharedMu.Unlock()
-			return nil, err
-		}
+func GetEmbedding(ctx context.Context, cfg config.Config, text string) ([]float32, error) {
+	provider, err := getSharedProvider(cfg)
+	if err != nil {
+		return nil, err
 	}
-	sharedMu.Unlock()
 
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// 检查 context 是否已取消
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("embedding 请求已取消: %w", err)
+		}
+
 		if attempt > 0 {
 			delay := time.Duration(math.Pow(2, float64(attempt-1))) * baseRetryDelay
 			slog.Debug("重试 embedding 请求", "attempt", attempt+1, "delay", delay)
-			time.Sleep(delay)
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return nil, fmt.Errorf("embedding 重试等待已取消: %w", ctx.Err())
+			}
 		}
-		result, err := sharedProvider.GetEmbedding(text)
+		result, err := provider.GetEmbedding(ctx, text)
 		if err == nil {
 			return result, nil
 		}
@@ -88,16 +101,13 @@ func isRetryableError(errMsg string) bool {
 }
 
 // GetBatchEmbeddings 批量获取文本的嵌入向量
-func GetBatchEmbeddings(cfg config.Config, texts []string) ([][]float32, error) {
-	sharedMu.Lock()
-	if sharedProvider == nil {
-		var err error
-		sharedProvider, err = NewEmbeddingProvider(cfg)
-		if err != nil {
-			sharedMu.Unlock()
-			return nil, err
-		}
+func GetBatchEmbeddings(ctx context.Context, cfg config.Config, texts []string) ([][]float32, error) {
+	provider, err := getSharedProvider(cfg)
+	if err != nil {
+		return nil, err
 	}
-	sharedMu.Unlock()
-	return sharedProvider.GetBatchEmbeddings(texts)
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("批量 embedding 请求已取消: %w", err)
+	}
+	return provider.GetBatchEmbeddings(ctx, texts)
 }

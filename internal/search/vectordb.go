@@ -31,7 +31,7 @@ func NewVectorDB(ctx context.Context, cfg config.Config) (VectorStore, error) {
 	case config.VectorStoreLocalJSONL:
 		return NewLocalJSONLStore(cfg.VectorStorePath)
 	default:
-		return nil, fmt.Errorf("unsupported vector store: %s", cfg.VectorStore)
+		return nil, fmt.Errorf("不支持的向量存储后端: %s", cfg.VectorStore)
 	}
 }
 

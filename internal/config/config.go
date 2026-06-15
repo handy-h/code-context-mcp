@@ -163,8 +163,8 @@ func defaultLocalVectorStorePath(collectionName string) string {
 	if exe, err := os.Executable(); err == nil {
 		dir = filepath.Dir(exe)
 	}
-	if filepath.Base(dir) != "code-text" {
-		dir = filepath.Join(dir, "code-text")
+	if filepath.Base(dir) != ".code-context" {
+		dir = filepath.Join(dir, ".code-context")
 	}
 	return filepath.Join(dir, collectionName+".jsonl")
 }

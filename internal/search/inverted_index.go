@@ -12,36 +12,36 @@ import (
 
 var identifierRe = regexp.MustCompile(`[a-zA-Z_][a-zA-Z0-9_]*`)
 
-var keywords = map[string]bool{
+var keywords = map[string]struct{}{
 	// Go 保留字
-	"func": true, "type": true, "struct": true, "interface": true,
-	"package": true, "range": true, "go": true, "defer": true,
-	"chan": true, "map": true, "nil": true,
-	"bool": true, "byte": true, "float64": true,
-	"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
-	"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
-	"uintptr": true, "rune": true, "complex64": true, "complex128": true,
-	"make": true, "new": true, "len": true, "cap": true, "append": true,
+	"func": {}, "type": {}, "struct": {}, "interface": {},
+	"package": {}, "range": {}, "go": {}, "defer": {},
+	"chan": {}, "map": {}, "nil": {},
+	"bool": {}, "byte": {}, "float64": {},
+	"int": {}, "int8": {}, "int16": {}, "int32": {}, "int64": {},
+	"uint": {}, "uint8": {}, "uint16": {}, "uint32": {}, "uint64": {},
+	"uintptr": {}, "rune": {}, "complex64": {}, "complex128": {},
+	"make": {}, "new": {}, "len": {}, "cap": {}, "append": {},
 	// JS/TS 保留字
-	"function": true, "class": true, "export": true,
-	"async": true, "await": true, "null": true, "undefined": true,
-	"this": true, "throw": true, "try": true, "catch": true,
-	"finally": true, "typeof": true, "instanceof": true,
-	"void": true, "delete": true, "yield": true,
-	"while": true,
+	"function": {}, "class": {}, "export": {},
+	"async": {}, "await": {}, "null": {}, "undefined": {},
+	"this": {}, "throw": {}, "try": {}, "catch": {},
+	"finally": {}, "typeof": {}, "instanceof": {},
+	"void": {}, "delete": {}, "yield": {},
+	"while": {},
 	// Python 保留字
-	"def": true, "self": true, "None": true,
-	"raise": true, "with": true, "as": true, "lambda": true,
-	"elif": true, "pass": true,
+	"def": {}, "self": {}, "None": {},
+	"raise": {}, "with": {}, "as": {}, "lambda": {},
+	"elif": {}, "pass": {},
 	// 多语言共享保留字
-	"var": true, "const": true, "import": true, "return": true,
-	"if": true, "else": true, "for": true, "switch": true,
-	"case": true, "default": true, "break": true, "continue": true,
-	"true": true, "false": true,
+	"var": {}, "const": {}, "import": {}, "return": {},
+	"if": {}, "else": {}, "for": {}, "switch": {},
+	"case": {}, "default": {}, "break": {}, "continue": {},
+	"true": {}, "false": {},
 	// Common
-	"get": true, "set": true, "not": true, "and": true, "or": true,
-	"do": true, "end": true, "then": true, "when": true, "is": true,
-	"has": true, "can": true, "use": true,
+	"get": {}, "set": {}, "not": {}, "and": {}, "or": {},
+	"do": {}, "end": {}, "then": {}, "when": {}, "is": {},
+	"has": {}, "can": {}, "use": {},
 }
 
 // InvertedIndex 符号倒排索引。
@@ -313,5 +313,6 @@ func extractContext(lines []string, targetIdx int, n int) string {
 
 // isKeyword 检查是否为常见关键字（应跳过不索引）
 func isKeyword(id string) bool {
-	return keywords[id]
+	_, ok := keywords[id]
+	return ok
 }

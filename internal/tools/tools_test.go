@@ -225,7 +225,7 @@ func TestHandleImpactAnalysis_Rename_NoNewName(t *testing.T) {
 }
 
 func TestHandleCodeSearch_EmptyQuery(t *testing.T) {
-	handler := handleCodeSearch(config.Config{SearchTimeout: 5 * time.Second}, nil)
+	handler := handleCodeSearch(config.Config{SearchTimeout: 5 * time.Second}, nil, nil)
 	_, err := handler(map[string]interface{}{"query": ""})
 	if err == nil {
 		t.Error("empty query should return error")

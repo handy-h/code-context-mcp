@@ -69,8 +69,8 @@ func TestMinInt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			if got := minInt(tt.a, tt.b); got != tt.want {
-				t.Errorf("minInt(%d, %d) = %d, want %d", tt.a, tt.b, got, tt.want)
+			if got := min(tt.a, tt.b); got != tt.want {
+				t.Errorf("min(%d, %d) = %d, want %d", tt.a, tt.b, got, tt.want)
 			}
 		})
 	}

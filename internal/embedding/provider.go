@@ -2,6 +2,7 @@ package embedding
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,12 +17,19 @@ import (
 // EmbeddingProvider 嵌入模型提供者接口
 type EmbeddingProvider interface {
 	// GetEmbedding 获取文本的嵌入向量
-	GetEmbedding(text string) ([]float32, error)
+	GetEmbedding(ctx context.Context, text string) ([]float32, error)
 	// GetBatchEmbeddings 批量获取文本的嵌入向量
-	GetBatchEmbeddings(texts []string) ([][]float32, error)
+	GetBatchEmbeddings(ctx context.Context, texts []string) ([][]float32, error)
 	// GetDimension 获取嵌入向量的维度
 	GetDimension() int
 }
+
+// 编译期接口实现检查
+var (
+	_ EmbeddingProvider = (*OllamaProvider)(nil)
+	_ EmbeddingProvider = (*OpenAIProvider)(nil)
+	_ EmbeddingProvider = (*GeminiProvider)(nil)
+)
 
 // OllamaProvider Ollama 嵌入模型提供者
 type OllamaProvider struct {
@@ -42,7 +50,7 @@ func NewOllamaProvider(url, model string, dim int) *OllamaProvider {
 }
 
 // GetEmbedding 实现 EmbeddingProvider 接口
-func (p *OllamaProvider) GetEmbedding(text string) ([]float32, error) {
+func (p *OllamaProvider) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
 	reqBody := ollamaRequest{
 		Model:      p.model,
 		Prompt:     text,
@@ -51,38 +59,38 @@ func (p *OllamaProvider) GetEmbedding(text string) ([]float32, error) {
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("json serialization failed: %w", err)
+		return nil, fmt.Errorf("JSON 序列化失败: %w", err)
 	}
 
 	url := p.url + "/api/embeddings"
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("ollama request failed (please confirm Ollama is running): %w", err)
+		return nil, fmt.Errorf("Ollama 请求失败（请确认 Ollama 已运行）: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("读取响应体失败: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ollama returned error status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("Ollama 返回错误状态码: %d, 响应: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result ollamaResponse
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("json parsing failed: %w, response body: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("JSON 解析失败: %w, 响应体: %s", err, string(bodyBytes))
 	}
 
 	if len(result.Embedding) == 0 {
-		return nil, fmt.Errorf("ollama returned empty vector, response: %s", string(bodyBytes))
+		return nil, fmt.Errorf("Ollama 返回空向量, 响应: %s", string(bodyBytes))
 	}
 
 	return result.Embedding, nil
@@ -94,12 +102,12 @@ func (p *OllamaProvider) GetDimension() int {
 }
 
 // GetBatchEmbeddings 批量获取文本的嵌入向量（Ollama 不支持批量 API，逐个调用）
-func (p *OllamaProvider) GetBatchEmbeddings(texts []string) ([][]float32, error) {
+func (p *OllamaProvider) GetBatchEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
 	results := make([][]float32, 0, len(texts))
 	for _, text := range texts {
-		vec, err := p.GetEmbedding(text)
+		vec, err := p.GetEmbedding(ctx, text)
 		if err != nil {
-			return nil, fmt.Errorf("batch embedding failed at text %d: %w", len(results), err)
+			return nil, fmt.Errorf("批量 embedding 在第 %d 条文本失败: %w", len(results), err)
 		}
 		results = append(results, vec)
 	}
@@ -149,9 +157,9 @@ type openaiEmbeddingResponse struct {
 }
 
 // GetEmbedding 实现 EmbeddingProvider 接口
-func (p *OpenAIProvider) GetEmbedding(text string) ([]float32, error) {
+func (p *OpenAIProvider) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
 	if p.apiKey == "" {
-		return nil, fmt.Errorf("OpenAI API key is required")
+		return nil, fmt.Errorf("OpenAI API Key 未配置")
 	}
 
 	reqBody := openaiEmbeddingRequest{
@@ -162,39 +170,39 @@ func (p *OpenAIProvider) GetEmbedding(text string) ([]float32, error) {
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("json serialization failed: %v", err)
+		return nil, fmt.Errorf("JSON 序列化失败: %w", err)
 	}
 
 	url := p.baseURL + "/embeddings"
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("OpenAI API request failed: %w", err)
+		return nil, fmt.Errorf("OpenAI API 请求失败: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("读取响应体失败: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OpenAI API returned error status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("OpenAI API 返回错误状态码: %d, 响应: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result openaiEmbeddingResponse
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("json parsing failed: %w, response body: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("JSON 解析失败: %w, 响应体: %s", err, string(bodyBytes))
 	}
 
 	if len(result.Data) == 0 || len(result.Data[0].Embedding) == 0 {
-		return nil, fmt.Errorf("OpenAI API returned empty vector, response: %s", string(bodyBytes))
+		return nil, fmt.Errorf("OpenAI API 返回空向量, 响应: %s", string(bodyBytes))
 	}
 
 	return result.Data[0].Embedding, nil
@@ -206,9 +214,9 @@ func (p *OpenAIProvider) GetDimension() int {
 }
 
 // GetBatchEmbeddings 批量获取文本的嵌入向量（OpenAI 支持真正的批量请求）
-func (p *OpenAIProvider) GetBatchEmbeddings(texts []string) ([][]float32, error) {
+func (p *OpenAIProvider) GetBatchEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
 	if p.apiKey == "" {
-		return nil, fmt.Errorf("OpenAI API key is required")
+		return nil, fmt.Errorf("OpenAI API Key 未配置")
 	}
 
 	reqBody := openaiEmbeddingRequest{
@@ -219,38 +227,38 @@ func (p *OpenAIProvider) GetBatchEmbeddings(texts []string) ([][]float32, error)
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("json serialization failed: %v", err)
+		return nil, fmt.Errorf("JSON 序列化失败: %w", err)
 	}
 
 	url := p.baseURL + "/embeddings"
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.apiKey)
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("OpenAI API request failed: %w", err)
+		return nil, fmt.Errorf("OpenAI API 请求失败: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("读取响应体失败: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OpenAI API returned error status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("OpenAI API 返回错误状态码: %d, 响应: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result openaiEmbeddingResponse
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("json parsing failed: %w, response body: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("JSON 解析失败: %w, 响应体: %s", err, string(bodyBytes))
 	}
 
-	// Sort by index to maintain order
+	// 按 index 排序以保持顺序
 	sort.Slice(result.Data, func(i, j int) bool {
 		return result.Data[i].Index < result.Data[j].Index
 	})
@@ -283,9 +291,9 @@ func NewGeminiProvider(baseURL, model, apiKey string, dim int) *GeminiProvider {
 }
 
 // GetEmbedding 实现 EmbeddingProvider 接口
-func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
+func (p *GeminiProvider) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
 	if p.apiKey == "" {
-		return nil, fmt.Errorf("Gemini API key is required")
+		return nil, fmt.Errorf("Gemini API Key 未配置")
 	}
 
 	// Gemini Embeddings API 请求格式
@@ -298,8 +306,7 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 				},
 			},
 		},
-		// 可选参数
-		"taskType": "RETRIEVAL_DOCUMENT", // 或 "RETRIEVAL_QUERY"
+		"taskType": "RETRIEVAL_DOCUMENT",
 	}
 
 	// 如果指定了维度，添加 output_dimensionality 参数
@@ -309,26 +316,26 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("json serialization failed: %w", err)
+		return nil, fmt.Errorf("JSON 序列化失败: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/models/%s:embedContent", p.baseURL, p.model)
-	req, err := http.NewRequest("POST", url, bytes.NewReader(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-goog-api-key", p.apiKey)
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Gemini API request failed: %w", err)
+		return nil, fmt.Errorf("Gemini API 请求失败: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("读取响应体失败: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -337,17 +344,17 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 		if json.Unmarshal(bodyBytes, &errResp) == nil {
 			if errorObj, ok := errResp["error"].(map[string]interface{}); ok {
 				if message, ok := errorObj["message"].(string); ok {
-					return nil, fmt.Errorf("Gemini API error: %s (status: %d)", message, resp.StatusCode)
+					return nil, fmt.Errorf("Gemini API 错误: %s (状态码: %d)", message, resp.StatusCode)
 				}
 			}
 		}
-		return nil, fmt.Errorf("Gemini API returned error status code: %d, response: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("Gemini API 返回错误状态码: %d, 响应: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	// 解析响应 - 根据测试输出，响应格式是 {"embedding": {"values": [...]}}
+	// 解析响应 - 响应格式是 {"embedding": {"values": [...]}}
 	var result map[string]interface{}
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
-		return nil, fmt.Errorf("json parsing failed: %w, response body: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("JSON 解析失败: %w, 响应体: %s", err, string(bodyBytes))
 	}
 
 	// 提取嵌入向量
@@ -356,23 +363,22 @@ func (p *GeminiProvider) GetEmbedding(text string) ([]float32, error) {
 		if values, ok := embeddingObj["values"].([]interface{}); ok {
 			embedding = make([]float32, len(values))
 			for i, v := range values {
-				// JSON 数字默认解析为 float64
 				if f, ok := v.(float64); ok {
 					embedding[i] = float32(f)
 				} else {
-					return nil, fmt.Errorf("invalid embedding value at index %d: %v", i, v)
+					return nil, fmt.Errorf("索引 %d 处的 embedding 值无效: %v", i, v)
 				}
 			}
 		}
 	}
 
 	if len(embedding) == 0 {
-		return nil, fmt.Errorf("Gemini API returned empty or invalid vector, response: %s", string(bodyBytes))
+		return nil, fmt.Errorf("Gemini API 返回空或无效的向量, 响应: %s", string(bodyBytes))
 	}
 
 	// 检查向量维度
 	if p.dim > 0 && len(embedding) != p.dim {
-		return nil, fmt.Errorf("embedding dimension mismatch: expected %d, got %d", p.dim, len(embedding))
+		return nil, fmt.Errorf("embedding 维度不匹配: 期望 %d, 实际 %d", p.dim, len(embedding))
 	}
 
 	return embedding, nil
@@ -384,12 +390,12 @@ func (p *GeminiProvider) GetDimension() int {
 }
 
 // GetBatchEmbeddings 批量获取文本的嵌入向量（Gemini embedContent 是单文本 API，逐个调用）
-func (p *GeminiProvider) GetBatchEmbeddings(texts []string) ([][]float32, error) {
+func (p *GeminiProvider) GetBatchEmbeddings(ctx context.Context, texts []string) ([][]float32, error) {
 	results := make([][]float32, 0, len(texts))
 	for _, text := range texts {
-		vec, err := p.GetEmbedding(text)
+		vec, err := p.GetEmbedding(ctx, text)
 		if err != nil {
-			return nil, fmt.Errorf("batch embedding failed at text %d: %w", len(results), err)
+			return nil, fmt.Errorf("批量 embedding 在第 %d 条文本失败: %w", len(results), err)
 		}
 		results = append(results, vec)
 	}
@@ -406,6 +412,6 @@ func NewEmbeddingProvider(cfg config.Config) (EmbeddingProvider, error) {
 	case config.ProviderGemini:
 		return NewGeminiProvider(cfg.GeminiBaseURL, cfg.GeminiModel, cfg.GeminiAPIKey, cfg.EmbeddingDim), nil
 	default:
-		return nil, fmt.Errorf("unsupported embedding provider: %s", cfg.EmbeddingProvider)
+		return nil, fmt.Errorf("不支持的 embedding 提供者: %s", cfg.EmbeddingProvider)
 	}
 }

@@ -46,25 +46,18 @@ func parseIntArg(args map[string]interface{}, key string, defaultVal int) int {
 type vdbFactory func(ctx context.Context) (search.VectorStore, error)
 
 var (
-	sharedVDB search.VectorStore
-	vdbMu     sync.Mutex
-	vdbInited bool
+	sharedVDB  search.VectorStore
+	vdbOnce    sync.Once
+	vdbInitErr error
 )
 
-// getSharedVDB 获取或创建共享 VectorDB 实例，避免每次搜索请求新建连接
+// getSharedVDB 获取或创建共享 VectorDB 实例（线程安全，仅初始化一次）
 func getSharedVDB(cfg config.Config) vdbFactory {
 	return func(ctx context.Context) (search.VectorStore, error) {
-		vdbMu.Lock()
-		defer vdbMu.Unlock()
-		if !vdbInited {
-			var err error
-			sharedVDB, err = search.NewVectorDB(ctx, cfg)
-			if err != nil {
-				return nil, err
-			}
-			vdbInited = true
-		}
-		return sharedVDB, nil
+		vdbOnce.Do(func() {
+			sharedVDB, vdbInitErr = search.NewVectorDB(ctx, cfg)
+		})
+		return sharedVDB, vdbInitErr
 	}
 }
 
@@ -99,7 +92,7 @@ func handleCodeSearch(cfg config.Config, indexMgr *indexer.IndexManager, getVDB 
 		}
 
 		// 1. 获取查询向量
-		vector, err := embedding.GetEmbedding(cfg, query)
+		vector, err := embedding.GetEmbedding(ctx, cfg, query)
 		if err != nil {
 			return "", fmt.Errorf("向量化查询失败: %w", err)
 		}
@@ -184,6 +177,9 @@ func handleFileContext(cfg config.Config) server.ToolHandler {
 			if !strings.HasPrefix(pathAbs, rootAbs+sep) && pathAbs != rootAbs {
 				return "", fmt.Errorf("文件路径必须在项目目录内")
 			}
+
+			// 使用验证后的真实路径读取文件，避免 TOCTOU 竞态
+			fullPath = pathAbs
 		}
 
 		slog.Info("file_context", "path", fullPath, "mode", mode)
@@ -410,11 +406,5 @@ func categorizeImpact(occType string, context string) string {
 }
 
 func containsJSONTag(s string) bool {
-	// 简单检查是否包含 json:" 标签
-	for i := 0; i < len(s)-5; i++ {
-		if s[i:i+6] == `json:"` {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(s, `json:"`)
 }

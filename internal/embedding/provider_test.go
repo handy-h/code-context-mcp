@@ -1,6 +1,7 @@
 package embedding
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -91,7 +92,7 @@ func TestOllamaProvider_GetEmbedding(t *testing.T) {
 	defer server.Close()
 
 	provider := NewOllamaProvider(server.URL, "test-model", 3)
-	vec, err := provider.GetEmbedding("hello world")
+	vec, err := provider.GetEmbedding(context.Background(), "hello world")
 	if err != nil {
 		t.Fatalf("GetEmbedding error: %v", err)
 	}
@@ -108,7 +109,7 @@ func TestOllamaProvider_GetEmbedding_Error(t *testing.T) {
 	defer server.Close()
 
 	provider := NewOllamaProvider(server.URL, "test-model", 3)
-	_, err := provider.GetEmbedding("hello")
+	_, err := provider.GetEmbedding(context.Background(), "hello")
 	if err == nil {
 		t.Error("GetEmbedding(500) should return error")
 	}
@@ -122,7 +123,7 @@ func TestOllamaProvider_GetEmbedding_EmptyVector(t *testing.T) {
 	defer server.Close()
 
 	provider := NewOllamaProvider(server.URL, "test-model", 3)
-	_, err := provider.GetEmbedding("hello")
+	_, err := provider.GetEmbedding(context.Background(), "hello")
 	if err == nil {
 		t.Error("GetEmbedding(empty vector) should return error")
 	}
@@ -165,7 +166,7 @@ func TestOpenAIProvider_GetEmbedding(t *testing.T) {
 	defer server.Close()
 
 	provider := NewOpenAIProvider(server.URL, "test-model", "test-key", 3)
-	vec, err := provider.GetEmbedding("hello world")
+	vec, err := provider.GetEmbedding(context.Background(), "hello world")
 	if err != nil {
 		t.Fatalf("GetEmbedding error: %v", err)
 	}
@@ -176,7 +177,7 @@ func TestOpenAIProvider_GetEmbedding(t *testing.T) {
 
 func TestOpenAIProvider_GetEmbedding_NoAPIKey(t *testing.T) {
 	provider := NewOpenAIProvider("http://localhost", "model", "", 3)
-	_, err := provider.GetEmbedding("hello")
+	_, err := provider.GetEmbedding(context.Background(), "hello")
 	if err == nil {
 		t.Error("GetEmbedding(no API key) should return error")
 	}
@@ -190,7 +191,7 @@ func TestOpenAIProvider_GetEmbedding_Error(t *testing.T) {
 	defer server.Close()
 
 	provider := NewOpenAIProvider(server.URL, "model", "bad-key", 3)
-	_, err := provider.GetEmbedding("hello")
+	_, err := provider.GetEmbedding(context.Background(), "hello")
 	if err == nil {
 		t.Error("GetEmbedding(401) should return error")
 	}
@@ -215,7 +216,7 @@ func TestGeminiProvider_GetEmbedding(t *testing.T) {
 	defer server.Close()
 
 	provider := NewGeminiProvider(server.URL, "embedding-001", "test-key", 3)
-	vec, err := provider.GetEmbedding("hello world")
+	vec, err := provider.GetEmbedding(context.Background(), "hello world")
 	if err != nil {
 		t.Fatalf("GetEmbedding error: %v", err)
 	}
@@ -226,7 +227,7 @@ func TestGeminiProvider_GetEmbedding(t *testing.T) {
 
 func TestGeminiProvider_GetEmbedding_NoAPIKey(t *testing.T) {
 	provider := NewGeminiProvider("http://localhost", "model", "", 3)
-	_, err := provider.GetEmbedding("hello")
+	_, err := provider.GetEmbedding(context.Background(), "hello")
 	if err == nil {
 		t.Error("GetEmbedding(no API key) should return error")
 	}
@@ -244,7 +245,7 @@ func TestGeminiProvider_GetEmbedding_DimensionMismatch(t *testing.T) {
 	defer server.Close()
 
 	provider := NewGeminiProvider(server.URL, "model", "key", 3)
-	_, err := provider.GetEmbedding("hello")
+	_, err := provider.GetEmbedding(context.Background(), "hello")
 	if err == nil {
 		t.Error("GetEmbedding(dimension mismatch) should return error")
 	}
@@ -258,7 +259,7 @@ func TestGeminiProvider_GetEmbedding_Error(t *testing.T) {
 	defer server.Close()
 
 	provider := NewGeminiProvider(server.URL, "model", "key", 3)
-	_, err := provider.GetEmbedding("hello")
+	_, err := provider.GetEmbedding(context.Background(), "hello")
 	if err == nil {
 		t.Error("GetEmbedding(400) should return error")
 	}

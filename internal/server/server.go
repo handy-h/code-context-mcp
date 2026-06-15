@@ -236,6 +236,7 @@ func (s *MCPServer) handleToolsCall(req jsonRPCRequest) jsonRPCResponse {
 
 	resultText, err := handler(params.Arguments)
 	if err != nil {
+		slog.Error("工具执行失败", "tool", params.Name, "err", err)
 		return jsonRPCResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,

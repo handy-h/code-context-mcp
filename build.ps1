@@ -34,7 +34,7 @@ try {
     if (-not $Version) { $Version = "dev" }
     $Commit  = (git rev-parse --short HEAD 2>$null) -replace "`n|`r", ""
     if (-not $Commit) { $Commit = "unknown" }
-    $Date    = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ").ToUniversalTime().ToString("yyyy-MM-dd_HH:mm:ss")
+    $Date    = (Get-Date -Format "yyyy-MM-dd_HH:mm:ss")
 } catch {
     $Version = "dev"
     $Commit  = "unknown"
@@ -88,8 +88,8 @@ function Invoke-Test {
 function Invoke-Lint {
     Write-Info "Running golangci-lint..."
     if (-not (Get-Command "golangci-lint" -ErrorAction SilentlyContinue)) {
-        Write-Info "Installing golangci-lint..."
-        go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        Write-Info "Installing golangci-lint v1.64.8..."
+        go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
     }
     golangci-lint run ./...
     if ($LASTEXITCODE -ne 0) { throw "Lint found issues" }
@@ -136,14 +136,9 @@ function Invoke-Deploy {
     Copy-Item -Path $BinaryExe -Destination "$DeployDir\$BinaryExe" -Force
     Write-Info "  - $DeployDir\$BinaryExe"
 
-    # Generate start-mcp.sh from template (replaces __VERSION__ / __BUILD_DATE__)
-    $templatePath = "start-mcp.sh.template"
-    if (Test-Path $templatePath) {
-        $template = Get-Content $templatePath -Raw
-        $buildDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-        $content = $template -replace "__VERSION__", $Version
-        $content = $content -replace "__BUILD_DATE__", $buildDate
-        Set-Content -Path "$DeployDir\start-mcp.sh" -Value $content -NoNewline
+    # 复制 start-mcp.sh 启动脚本（如存在）
+    if (Test-Path "start-mcp.sh") {
+        Copy-Item -Path "start-mcp.sh" -Destination "$DeployDir\start-mcp.sh" -Force
         Write-Info "  - $DeployDir\start-mcp.sh"
     }
 

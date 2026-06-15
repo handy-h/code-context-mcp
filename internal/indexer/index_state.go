@@ -108,7 +108,9 @@ func getGitCommitHash(projectPath string) (string, error) {
 
 // isGitDirty 检查 git 工作树是否有未提交的变更
 func isGitDirty(projectPath string) bool {
-	cmd := exec.Command("git", "status", "--porcelain")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "status", "--porcelain")
 	cmd.Dir = projectPath
 	output, err := cmd.Output()
 	if err != nil {
