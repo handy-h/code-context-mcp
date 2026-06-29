@@ -116,5 +116,14 @@ func GetToolDefinitions() []ToolDefinition {
 				"required": []string{"symbol", "action"},
 			},
 		},
+		{
+			Name:        "token_stats",
+			Description: "查看 MCP 工具使用期间累计节省的 token 统计（按日维度）。基于基线对照法估算。",
+			InputSchema: map[string]interface{}{
+				"type":                 "object",
+				"properties":           map[string]interface{}{},
+				"additionalProperties": false,
+			},
+		},
 	}
 }

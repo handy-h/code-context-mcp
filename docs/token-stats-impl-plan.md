@@ -34,6 +34,14 @@
 
 部署目录改名：`code-text/` → `code-context-mcp/`。
 
+> **迁移说明**：现有 `code-text/` 目录中的 `code_context.jsonl` 需手动复制到新的 `code-context-mcp/` 目录，避免重新索引。旧 `code-text/` 目录可在确认无误后删除。首次运行新版后若未复制旧数据，会自动重新索引。
+
+> **module path 无需修改**：`go.mod` 中 module path 已是 `github.com/handy-h/code-context-mcp`，所有 import 路径已正确。
+
+> **Dockerfile/Makefile 无需改动**：不包含 `code-text` 引用，文件布局不受影响。
+
+> **CI/CD 无需改动**：`.github/workflows/` 下的 yml 文件不包含 `code-text` 引用。
+
 ## 三、Phase 1 — 文件路径收束
 
 ### 3.1 向量存储路径（config.go）
@@ -118,7 +126,27 @@ $DeployDir = "code-context-mcp"
 | `configs/examples/.env.openai-compatible.example` L29-30 | 更新路径 |
 | `configs/examples/.env.gemini.example` L37, L39, L76-77 | 更新路径 |
 | `docs/promotion.md` L71 | `code-text/` → `code-context-mcp/` |
-| `index_state_test.go` L45 | 更新断言的预期路径 |
+| `index_state_test.go` L45 | 重构断言逻辑（见 §3.5） |
+
+### 3.5 index_state_test.go 断言重构
+
+`TestNewIndexStateStore_DefaultPath` 原断言验证默认路径为 `{projectPath}/.code-context-index-state.json`，改动后默认路径依赖 `os.Executable()`，无法用固定字符串断言。
+
+重构方案：测试不再断言具体路径，改为验证行为特征：
+
+```go
+func TestNewIndexStateStore_DefaultPath(t *testing.T) {
+    store := NewIndexStateStore("/project", "")
+    // 默认路径不应包含 /project（改为 exe_dir 基准）
+    if strings.Contains(store.filePath, "/project") {
+        t.Errorf("default path should not be based on projectPath, got %q", store.filePath)
+    }
+    // 应以 index-state.json 结尾
+    if !strings.HasSuffix(store.filePath, "index-state.json") {
+        t.Errorf("default path should end with index-state.json, got %q", store.filePath)
+    }
+}
+```
 
 ## 四、Phase 2 — tokenstats 包
 
@@ -130,10 +158,11 @@ internal/tokenstats/
   ├── estimator.go       # EstimateTokens(s string, charsPerToken float64) int
   ├── baseline.go        # BaselineConfig + EstimateSavedTokens()
   ├── store.go           # JSON 文件持久化（原子 rename）
-  ├── tracker.go         # Tracker：并发安全 + 内存聚合 + 即时落盘
+  ├── tracker.go         # Tracker：并发安全 + 内存聚合 + 延迟落盘
+  ├── format.go          # formatStats() 文本格式化输出
   ├── estimator_test.go  # 纯 ASCII / 中文混合 / 空字符串 / 系数可配
   ├── baseline_test.go   # 各工具基线 / file_context full=0 / top_k 截断 / 不为负
-  ├── tracker_test.go    # 并发 100 次 -race / 聚合正确 / 禁用空操作
+  ├── tracker_test.go    # 并发 100 次（go test -race 验证）/ 聚合正确 / 禁用空操作
   └── store_test.go      # Load 不存在返空 / Save-Load 一致性
 ```
 
@@ -146,33 +175,30 @@ import "time"
 
 // ToolStats 单工具总量聚合
 type ToolStats struct {
-    CallCount        int64 `json:"call_count"`
-    TotalInputTokens int64 `json:"total_input_tokens"`
+    CallCount         int64 `json:"call_count"`
     TotalOutputTokens int64 `json:"total_output_tokens"`
-    TotalSavedTokens int64 `json:"total_saved_tokens"`
-    TotalDurationMs  int64 `json:"total_duration_ms"`
+    TotalSavedTokens  int64 `json:"total_saved_tokens"`
+    TotalDurationMs   int64 `json:"total_duration_ms"`
 }
 
 // DailyStats 单日聚合统计
 type DailyStats struct {
-    Date         string `json:"date"`
-    CallCount    int64  `json:"call_count"`
-    InputTokens  int64  `json:"input_tokens"`
-    OutputTokens int64  `json:"output_tokens"`
-    SavedTokens  int64  `json:"saved_tokens"`
+    Date        string `json:"date"`
+    CallCount   int64  `json:"call_count"`
+    OutputTokens int64 `json:"output_tokens"`
+    SavedTokens int64  `json:"saved_tokens"`
 }
 
 // StatsSnapshot 全量快照（持久化结构）
 type StatsSnapshot struct {
-    Version          string                `json:"version"`
-    CreatedAt        time.Time             `json:"created_at"`
-    UpdatedAt        time.Time             `json:"updated_at"`
-    TotalCalls       int64                 `json:"total_calls"`
-    TotalInputTokens int64                 `json:"total_input_tokens"`
-    TotalOutputTokens int64               `json:"total_output_tokens"`
-    TotalSavedTokens int64                `json:"total_saved_tokens"`
-    ByTool           map[string]*ToolStats `json:"by_tool"`
-    Daily            []DailyStats          `json:"daily"`
+    Version           string                `json:"version"`
+    CreatedAt         time.Time             `json:"created_at"`
+    UpdatedAt         time.Time             `json:"updated_at"`
+    TotalCalls        int64                 `json:"total_calls"`
+    TotalOutputTokens int64                 `json:"total_output_tokens"`
+    TotalSavedTokens  int64                 `json:"total_saved_tokens"`
+    ByTool            map[string]*ToolStats `json:"by_tool"`
+    Daily             []DailyStats          `json:"daily"`
 }
 
 // ToolCallRecord 单次调用记录（不持久化，传给 Tracker.Record）
@@ -184,6 +210,8 @@ type ToolCallRecord struct {
     Timestamp  time.Time
 }
 ```
+
+> **注意**：已移除 `TotalInputTokens` / `input_tokens` 字段。`ToolCallRecord` 只有 `OutputText`，没有 `InputText`，无从统计输入 token。如未来需要统计输入 token，需在 `ToolCallRecord` 中新增 `InputText` 字段。
 
 ### 4.3 estimator.go
 
@@ -244,10 +272,10 @@ func (c BaselineConfig) calcBaseline(toolName string, args map[string]interface{
         return topK * c.CodeSearchFileTokens
     case "file_context":
         mode, _ := args["mode"].(string)
-        if mode == "summary" || mode == "" {
+        if mode == "summary" {
             return c.FileContextBaseline
         }
-        return 0 // mode=full 无节省
+        return 0 // mode=full（含未传值的默认情况）无节省
     case "symbol_search":
         return c.SymbolSearchBaseline
     case "impact_analysis":
@@ -275,6 +303,8 @@ func extractTopK(args map[string]interface{}) int {
 }
 ```
 
+> **file_context mode 默认值说明**：实际代码 `handleFileContext` 中，不传 mode 时默认为 `"full"`（非空字符串），因此 `mode == ""` 分支永远不会被触发。`baseline.go` 中只匹配 `mode == "summary"`，其余一律返回 0，与实际行为一致。
+
 不参与统计的工具（`index_project`、`token_stats`）由 tracker 层过滤，baseline 层不感知。
 
 ### 4.5 store.go
@@ -294,6 +324,8 @@ func (s *Store) Save(stats *StatsSnapshot) error // os.WriteFile(tmp) + os.Renam
 
 空快照初始化逻辑：`Version: "1"`，`CreatedAt: time.Now()`，`ByTool: make(map[string]*ToolStats)`，`Daily: nil`。
 
+> **Windows 兼容性**：Go 的 `os.Rename` 在 Windows 上使用 `MoveFileEx` with `MOVEFILE_REPLACE_EXISTING`，通常可正常工作。若 rename 失败（如目标文件被占用），降级为直接 `os.WriteFile(filePath)` 写入。
+
 ### 4.6 tracker.go
 
 ```go
@@ -308,11 +340,14 @@ type Tracker struct {
     enabled       bool
     snapshot      *StatsSnapshot
     retentionDays int
+    dirty         bool
+    lastSaveTime  time.Time
 }
 
 func NewTracker(store *Store, baseline BaselineConfig, charsPerToken float64, enabled bool, retentionDays int) *Tracker
-func (t *Tracker) Record(rec ToolCallRecord) error   // 更新内存 + 落盘
+func (t *Tracker) Record(rec ToolCallRecord) error   // 更新内存 + 条件落盘
 func (t *Tracker) GetStats() StatsSnapshot           // 返回副本
+func (t *Tracker) Flush() error                      // 强制落盘（优雅退出时调用）
 
 // skipTracking 过滤不参与统计的工具
 var skipTracking = map[string]bool{
@@ -325,14 +360,27 @@ var skipTracking = map[string]bool{
 
 1. `if !t.enabled { return nil }` — 禁用时直接返回
 2. `if skipTracking[rec.ToolName] { return nil }` — 过滤元操作
-3. 估算 input/output tokens
+3. 估算 output tokens（`EstimateTokens(rec.OutputText, t.charsPerToken)`）
 4. 计算 saved tokens
 5. 更新总量聚合 + by_tool 聚合
 6. 更新 daily 聚合（按 `rec.Timestamp.Format("2006-01-02")` bucket）
 7. 裁剪超过 `retentionDays` 的 daily 条目
-8. `store.Save(snapshot)` 落盘
+8. 条件落盘：设 `dirty=true`，若距 `lastSaveTime` 超过 30 秒则 `store.Save(snapshot)` 并重置 `dirty` 和 `lastSaveTime`
+
+> **延迟落盘策略**：`Record` 每次只更新内存，仅当距上次落盘超过 30 秒时才执行磁盘写入。高频调用场景下避免每次调用都阻塞在磁盘 I/O。`Flush()` 方法供优雅退出时强制落盘，确保不丢数据。
 
 并发模型：工具调用在 goroutine 中执行，`Record` 是唯一写入口，`sync.Mutex` 保护。
+
+### 4.7 format.go
+
+```go
+package tokenstats
+
+// formatStats 将统计快照格式化为文本输出
+func formatStats(stats StatsSnapshot) string
+```
+
+输出格式见 §六。函数位于 `internal/tokenstats/format.go`，由 `tools.go` 的 `handleTokenStats` 调用。
 
 ## 五、Phase 3 — 集成改造
 
@@ -366,12 +414,34 @@ TokenStatsRetentionDays         int
 
 `TOKEN_STATS_PATH` 默认值计算：与 `defaultLocalVectorStorePath` 同逻辑，`{exe_dir}/token-stats.json`。
 
-注意：Config 当前 23 字段 + 8 = 31 字段。`config-dependency-map.md` 中写的 25 是错误的，应同步修正。
+`LoadConfig` 需新增 `getEnvFloat64` 辅助函数用于解析 `TOKEN_STATS_CHARS_PER_TOKEN`。
 
-### 5.2 埋点（server.go handleToolsCall）
+注意：Config 当前 23 字段 + 8 = 31 字段。`config-dependency-map.md` 中写的 25 是错误的，应同步修正（见 §5.5）。
+
+### 5.2 MCPServer 新增 tracker 字段（server.go）
+
+`MCPServer` 结构新增 `tracker *tokenstats.Tracker` 字段和 `SetTracker` 方法：
 
 ```go
-// 改动前（server.go L237）
+type MCPServer struct {
+    cfg     config.Config
+    version string
+    tools   map[string]ToolHandler
+    tracker *tokenstats.Tracker  // 新增
+    writeMu sync.Mutex
+    wg      sync.WaitGroup
+}
+
+// SetTracker 注入 token 统计追踪器
+func (s *MCPServer) SetTracker(t *tokenstats.Tracker) {
+    s.tracker = t
+}
+```
+
+埋点改造（`handleToolsCall`）：
+
+```go
+// 改动前（server.go handleToolsCall 中）
 resultText, err := handler(params.Arguments)
 
 // 改动后
@@ -392,7 +462,7 @@ if s.tracker != nil && err == nil {
 }
 ```
 
-`MCPServer` 结构新增 `tracker *tokenstats.Tracker` 字段。`NewMCPServer` 签名不变——tracker 通过 `RegisterTool` 模式注入（见 5.3）。
+> **注入路径**：tracker 通过 `SetTracker` 注入 `MCPServer`，埋点从 `s.tracker` 取用。`RegisterTools` 也接收 tracker 参数，供 `handleTokenStats` handler 闭包直接捕获。两条路径各司其职，不冗余。
 
 ### 5.3 工具注册（tools.go + tool_defs.go）
 
@@ -415,7 +485,7 @@ func handleTokenStats(tracker *tokenstats.Tracker) server.ToolHandler {
             return "统计功能未启用", nil
         }
         stats := tracker.GetStats()
-        return formatStats(stats), nil
+        return tokenstats.FormatStats(stats), nil
     }
 }
 ```
@@ -425,8 +495,6 @@ func handleTokenStats(tracker *tokenstats.Tracker) server.ToolHandler {
 ```go
 srv.RegisterTool("token_stats", handleTokenStats(tracker))
 ```
-
-tracker 同时通过 `srv.SetTracker(tracker)` 注入 MCPServer（供埋点使用）。
 
 **tool_defs.go** — `GetToolDefinitions` 新增定义：
 
@@ -469,6 +537,13 @@ func runMCPMode(cfg config.Config) {
 }
 ```
 
+### 5.5 config-dependency-map.md 修正
+
+- 标题：`25 个字段` → `31 个字段`
+- 概览图：`25 个字段` → `31 个字段`，新增 `Stats（8个字段）→ tokenstats 包使用` 分支
+- 新增 §6 `internal/tokenstats/` 子系统依赖说明
+- 补充遗漏的 `ChunkSize` 字段到索引相关部分
+
 ## 六、token_stats 输出格式
 
 ```
@@ -509,13 +584,11 @@ impact_analysis   11       6,352      23,748     45ms
   "created_at": "2026-06-01T10:00:00Z",
   "updated_at": "2026-06-29T15:30:00Z",
   "total_calls": 142,
-  "total_input_tokens": 1850,
   "total_output_tokens": 89432,
   "total_saved_tokens": 287568,
   "by_tool": {
     "code_search": {
       "call_count": 68,
-      "total_input_tokens": 1200,
       "total_output_tokens": 42180,
       "total_saved_tokens": 156420,
       "total_duration_ms": 21760
@@ -525,14 +598,12 @@ impact_analysis   11       6,352      23,748     45ms
     {
       "date": "2026-06-23",
       "call_count": 12,
-      "input_tokens": 150,
       "output_tokens": 7200,
       "saved_tokens": 24100
     },
     {
       "date": "2026-06-24",
       "call_count": 18,
-      "input_tokens": 220,
       "output_tokens": 11500,
       "saved_tokens": 36800
     }
@@ -550,12 +621,15 @@ impact_analysis   11       6,352      23,748     45ms
 | 工具调用失败（err != nil） | 不记录 |
 | `code_search` top_k 未传/非法 | 默认 5 |
 | `code_search` top_k > 10 | 截断为 10 |
+| `file_context` mode 未传 | 默认 full，基线为 0，节省为 0 |
 | `file_context` mode=full | 基线为 0，节省为 0 |
+| `file_context` mode=summary | 基线为 FileContextBaseline |
 | 输出超过基线 | max(0, ...) 不为负 |
 | daily 超过 retentionDays | Record 时裁剪旧条目 |
 | 统计文件损坏 | Load 失败重建空快照，warn 日志 |
 | 统计文件不存在 | 返回空快照，首次 Record 创建 |
 | tracker 为 nil（-index 模式或禁用） | 埋点 `s.tracker != nil` 检查跳过 |
+| 进程异常退出 | 最多丢失最近 30 秒统计数据（延迟落盘窗口） |
 
 ## 九、实施顺序
 
@@ -567,20 +641,21 @@ impact_analysis   11       6,352      23,748     45ms
 | 2 | 部署目录改名：`code-text` → `code-context-mcp` | `build.ps1`, `.gitignore` |
 | 3 | 文档批量更新 | `AGENTS.md`, `CLAUDE.md`, `README.md`, `.env.example`, `configs/examples/*.example`, `docs/promotion.md`, `config-dependency-map.md` |
 | 4 | tokenstats 包：types + estimator + baseline | `internal/tokenstats/types.go`, `estimator.go`, `baseline.go`, 对应 `_test.go` |
-| 5 | tokenstats 包：store + tracker（含 daily 聚合） | `internal/tokenstats/store.go`, `tracker.go`, 对应 `_test.go` |
-| 6 | 集成：Config 新增 8 字段 + LoadConfig | `config.go` |
-| 7 | 集成：server.go 埋点 + SetTracker | `server.go` |
-| 8 | 集成：tools.go 注册 token_stats + tool_defs.go 定义 | `tools.go`, `tool_defs.go` |
-| 9 | 集成：main.go 创建 tracker 注入 | `main.go` |
-| 10 | 验证：`make vet && make test && make build` | — |
+| 5 | tokenstats 包：store + tracker（含 daily 聚合 + 延迟落盘） | `internal/tokenstats/store.go`, `tracker.go`, 对应 `_test.go` |
+| 6 | tokenstats 包：format（文本输出格式化） | `internal/tokenstats/format.go` |
+| 7 | 集成：Config 新增 8 字段 + LoadConfig + getEnvFloat64 | `config.go` |
+| 8 | 集成：server.go 埋点 + SetTracker + tracker 字段 | `server.go` |
+| 9 | 集成：tools.go 注册 token_stats + tool_defs.go 定义 | `tools.go`, `tool_defs.go` |
+| 10 | 集成：main.go 创建 tracker 注入 | `main.go` |
+| 11 | 验证：`go vet && go test -race ./... && go build` | — |
 
 ## 十、测试要点
 
 | 测试文件 | 覆盖点 |
 |---------|--------|
 | `estimator_test.go` | 纯 ASCII / 中文混合 / 空字符串 / charsPerToken=3.5 可配 |
-| `baseline_test.go` | 各工具基线计算 / file_context full=0 / mode 未传=summary / top_k=0 或负数→默认5 / top_k=20→截断10 / 节省不为负 |
-| `tracker_test.go` | 并发 100 次 Record `-race` / 聚合正确 / daily 按日分桶 / retentionDays 裁剪 / 禁用时空操作 / skipTracking 过滤 |
+| `baseline_test.go` | 各工具基线计算 / file_context full=0 / mode 未传=full=0 / mode=summary 有基线 / top_k=0 或负数→默认5 / top_k=20→截断10 / 节省不为负 |
+| `tracker_test.go` | 并发 100 次 Record（`go test -race` 验证）/ 聚合正确 / daily 按日分桶 / retentionDays 裁剪 / 禁用时空操作 / skipTracking 过滤 / 延迟落盘不每次写磁盘 |
 | `store_test.go` | Load 不存在返空 / Save-Load 一致性 / 原子性（写入中断不损坏） |
 
-现有 `index_state_test.go` 需更新断言路径。
+现有 `index_state_test.go` 需重构默认路径断言（见 §3.5）。

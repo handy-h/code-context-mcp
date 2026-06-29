@@ -67,6 +67,16 @@ type Config struct {
 	// 超时配置
 	SearchTimeout time.Duration
 	IndexTimeout  time.Duration
+
+	// Token 统计配置
+	TokenStatsEnabled                bool
+	TokenStatsPath                   string
+	TokenStatsCharsPerToken          float64
+	TokenStatsCodeSearchBaseline     int
+	TokenStatsFileContextBaseline    int
+	TokenStatsSymbolSearchBaseline   int
+	TokenStatsImpactAnalysisBaseline int
+	TokenStatsRetentionDays          int
 }
 
 // LoadConfig 从环境变量加载配置，提供合理默认值
@@ -113,6 +123,15 @@ func LoadConfig() Config {
 
 		SearchTimeout: time.Duration(getEnvInt("SEARCH_TIMEOUT_SECONDS", 30)) * time.Second,
 		IndexTimeout:  time.Duration(getEnvInt("INDEX_TIMEOUT_SECONDS", 300)) * time.Second,
+
+		TokenStatsEnabled:                getEnvBool("TOKEN_STATS_ENABLED", false),
+		TokenStatsPath:                   getEnv("TOKEN_STATS_PATH", defaultTokenStatsPath()),
+		TokenStatsCharsPerToken:          getEnvFloat64("TOKEN_STATS_CHARS_PER_TOKEN", 4.0),
+		TokenStatsCodeSearchBaseline:     getEnvInt("TOKEN_STATS_CODE_SEARCH_BASELINE", 2000),
+		TokenStatsFileContextBaseline:    getEnvInt("TOKEN_STATS_FILE_CONTEXT_BASELINE", 3000),
+		TokenStatsSymbolSearchBaseline:   getEnvInt("TOKEN_STATS_SYMBOL_SEARCH_BASELINE", 8000),
+		TokenStatsImpactAnalysisBaseline: getEnvInt("TOKEN_STATS_IMPACT_ANALYSIS_BASELINE", 12000),
+		TokenStatsRetentionDays:          getEnvInt("TOKEN_STATS_RETENTION_DAYS", 90),
 	}
 }
 
@@ -163,10 +182,15 @@ func defaultLocalVectorStorePath(collectionName string) string {
 	if exe, err := os.Executable(); err == nil {
 		dir = filepath.Dir(exe)
 	}
-	if filepath.Base(dir) != ".code-context" {
-		dir = filepath.Join(dir, ".code-context")
-	}
 	return filepath.Join(dir, collectionName+".jsonl")
+}
+
+func defaultTokenStatsPath() string {
+	dir := "."
+	if exe, err := os.Executable(); err == nil {
+		dir = filepath.Dir(exe)
+	}
+	return filepath.Join(dir, "token-stats.json")
 }
 
 // normalizeCollectionName 规范化 Milvus 集合名称
@@ -213,9 +237,23 @@ func getEnvInt(key string, fallback int) int {
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 环境变量 %s 的值 %q 无法解析为整数，使用默认值 %v\n", key, v, fallback)
 		return fallback
 	}
 	return n
+}
+
+func getEnvFloat64(key string, fallback float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "警告: 环境变量 %s 的值 %q 无法解析为浮点数，使用默认值 %v\n", key, v, fallback)
+		return fallback
+	}
+	return f
 }
 
 func getEnvBool(key string, fallback bool) bool {

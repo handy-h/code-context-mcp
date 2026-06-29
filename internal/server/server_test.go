@@ -189,8 +189,8 @@ func TestHandleRequest_Notification(t *testing.T) {
 
 func TestGetToolDefinitions(t *testing.T) {
 	defs := GetToolDefinitions()
-	if len(defs) != 5 {
-		t.Errorf("GetToolDefinitions() returned %d tools, want 5", len(defs))
+	if len(defs) != 6 {
+		t.Errorf("GetToolDefinitions() returned %d tools, want 6", len(defs))
 	}
 
 	names := make(map[string]bool)
@@ -201,7 +201,7 @@ func TestGetToolDefinitions(t *testing.T) {
 		}
 	}
 
-	expected := []string{"code_search", "file_context", "index_project", "symbol_search", "impact_analysis"}
+	expected := []string{"code_search", "file_context", "index_project", "symbol_search", "impact_analysis", "token_stats"}
 	for _, name := range expected {
 		if !names[name] {
 			t.Errorf("tool %q not found in definitions", name)

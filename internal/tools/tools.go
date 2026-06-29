@@ -16,6 +16,7 @@ import (
 	"github.com/handy-h/code-context-mcp/internal/indexer"
 	"github.com/handy-h/code-context-mcp/internal/search"
 	"github.com/handy-h/code-context-mcp/internal/server"
+	"github.com/handy-h/code-context-mcp/internal/tokenstats"
 	"github.com/handy-h/code-context-mcp/internal/types"
 	"github.com/handy-h/code-context-mcp/pkg/file"
 	"github.com/handy-h/code-context-mcp/pkg/structure"
@@ -62,13 +63,14 @@ func getSharedVDB(cfg config.Config) vdbFactory {
 }
 
 // RegisterTools 注册所有工具处理器
-func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.IndexManager) {
+func RegisterTools(srv *server.MCPServer, cfg config.Config, indexMgr *indexer.IndexManager, tracker *tokenstats.Tracker) {
 	factory := getSharedVDB(cfg)
 	srv.RegisterTool("code_search", handleCodeSearch(cfg, indexMgr, factory))
 	srv.RegisterTool("file_context", handleFileContext(cfg))
 	srv.RegisterTool("index_project", handleIndexProject(cfg, indexMgr))
 	srv.RegisterTool("symbol_search", handleSymbolSearch(indexMgr))
 	srv.RegisterTool("impact_analysis", handleImpactAnalysis(indexMgr))
+	srv.RegisterTool("token_stats", handleTokenStats(tracker))
 }
 
 // handleCodeSearch 语义搜索代码
@@ -407,4 +409,15 @@ func categorizeImpact(occType string, context string) string {
 
 func containsJSONTag(s string) bool {
 	return strings.Contains(s, `json:"`)
+}
+
+// handleTokenStats 查看 token 节省统计
+func handleTokenStats(tracker *tokenstats.Tracker) server.ToolHandler {
+	return func(args map[string]interface{}) (string, error) {
+		if tracker == nil {
+			return "统计功能未启用。请在 .env 中设置 TOKEN_STATS_ENABLED=true", nil
+		}
+		stats := tracker.GetStats()
+		return tokenstats.FormatStats(stats), nil
+	}
 }

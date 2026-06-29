@@ -23,7 +23,11 @@ type IndexStateStore struct {
 // NewIndexStateStore 创建状态存储
 func NewIndexStateStore(projectPath string, statePath string) *IndexStateStore {
 	if statePath == "" {
-		statePath = filepath.Join(projectPath, ".code-context-index-state.json")
+		dir := "."
+		if exe, err := os.Executable(); err == nil {
+			dir = filepath.Dir(exe)
+		}
+		statePath = filepath.Join(dir, "index-state.json")
 	}
 	return &IndexStateStore{filePath: statePath}
 }

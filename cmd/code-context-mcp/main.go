@@ -14,6 +14,7 @@ import (
 	"github.com/handy-h/code-context-mcp/internal/indexer"
 	"github.com/handy-h/code-context-mcp/internal/search"
 	"github.com/handy-h/code-context-mcp/internal/server"
+	"github.com/handy-h/code-context-mcp/internal/tokenstats"
 	"github.com/handy-h/code-context-mcp/internal/tools"
 )
 
@@ -118,11 +119,35 @@ func runMCPMode(cfg config.Config) {
 		}()
 	}
 
-	srv := server.NewMCPServer(cfg, version)
-	tools.RegisterTools(srv, cfg, indexMgr)
+	// 创建 token 统计追踪器
+	var tracker *tokenstats.Tracker
+	if cfg.TokenStatsEnabled {
+		store := tokenstats.NewStore(cfg.TokenStatsPath)
+		baseline := tokenstats.BaselineConfig{
+			CodeSearchFileTokens:   cfg.TokenStatsCodeSearchBaseline,
+			FileContextBaseline:    cfg.TokenStatsFileContextBaseline,
+			SymbolSearchBaseline:   cfg.TokenStatsSymbolSearchBaseline,
+			ImpactAnalysisBaseline: cfg.TokenStatsImpactAnalysisBaseline,
+		}
+		tracker = tokenstats.NewTracker(store, baseline, cfg.TokenStatsCharsPerToken, true, cfg.TokenStatsRetentionDays)
+		slog.Info("Token 统计已启用", "path", cfg.TokenStatsPath)
+	}
 
-	if err := srv.Run(); err != nil {
-		slog.Error("MCP 服务器错误", "err", err)
+	srv := server.NewMCPServer(cfg, version)
+	srv.SetTracker(tracker)
+	tools.RegisterTools(srv, cfg, indexMgr, tracker)
+
+	runErr := srv.Run()
+
+	// 优雅退出：强制落盘统计（必须在 exit 前执行）
+	if tracker != nil {
+		if err := tracker.Flush(); err != nil {
+			slog.Warn("统计落盘失败", "err", err)
+		}
+	}
+
+	if runErr != nil {
+		slog.Error("MCP 服务器错误", "err", runErr)
 		os.Exit(1)
 	}
 }

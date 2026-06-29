@@ -63,17 +63,3 @@ version: ## Show version information
 dev: build ## Build and run in development mode (index current directory)
 	@./$(BINARY_PATH) -index .
 
-# Cross-compilation targets
-build-linux: ## Build for Linux amd64
-	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/code-context-mcp
-
-build-darwin: ## Build for macOS Intel
-	@GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-amd64 ./cmd/code-context-mcp
-
-build-darwin-arm64: ## Build for macOS Apple Silicon
-	@GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-darwin-arm64 ./cmd/code-context-mcp
-
-build-windows: ## Build for Windows amd64
-	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME)-windows-amd64.exe ./cmd/code-context-mcp
-
-build-all: build-linux build-darwin build-darwin-arm64 build-windows ## Build for all platforms

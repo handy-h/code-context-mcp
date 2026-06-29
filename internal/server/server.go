@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/handy-h/code-context-mcp/internal/config"
+	"github.com/handy-h/code-context-mcp/internal/tokenstats"
 )
 
 // ================= JSON-RPC 2.0 数据结构 =================
@@ -66,7 +68,8 @@ type MCPServer struct {
 	cfg     config.Config
 	version string
 	tools   map[string]ToolHandler
-	writeMu sync.Mutex // 保护 stdout 写入的互斥锁
+	tracker *tokenstats.Tracker // token 统计追踪器（可能为 nil）
+	writeMu sync.Mutex          // 保护 stdout 写入的互斥锁
 	wg      sync.WaitGroup
 }
 
@@ -85,6 +88,11 @@ func NewMCPServer(cfg config.Config, version string) *MCPServer {
 // RegisterTool 注册工具
 func (s *MCPServer) RegisterTool(name string, handler ToolHandler) {
 	s.tools[name] = handler
+}
+
+// SetTracker 注入 token 统计追踪器
+func (s *MCPServer) SetTracker(t *tokenstats.Tracker) {
+	s.tracker = t
 }
 
 // Run 启动 MCP 服务器（stdio 模式）
@@ -234,7 +242,24 @@ func (s *MCPServer) handleToolsCall(req jsonRPCRequest) jsonRPCResponse {
 		}
 	}
 
+	start := time.Now()
+
 	resultText, err := handler(params.Arguments)
+
+	// token 统计埋点
+	if s.tracker != nil && err == nil {
+		duration := time.Since(start)
+		if recordErr := s.tracker.Record(tokenstats.ToolCallRecord{
+			ToolName:   params.Name,
+			Args:       params.Arguments,
+			OutputText: resultText,
+			DurationMs: duration.Milliseconds(),
+			Timestamp:  start,
+		}); recordErr != nil {
+			slog.Warn("记录 token 统计失败", "err", recordErr)
+		}
+	}
+
 	if err != nil {
 		slog.Error("工具执行失败", "tool", params.Name, "err", err)
 		return jsonRPCResponse{

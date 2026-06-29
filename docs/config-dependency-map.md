@@ -1,17 +1,17 @@
 # Config 依赖地图
 
-> 本文档用于 AI 助手快速了解项目中 `config.Config` 的 25 个字段分别被哪些子系统使用。
+> 本文档用于 AI 助手快速了解项目中 `config.Config` 的 31 个字段分别被哪些子系统使用。
 > **每次要求 AI 修改项目功能前，请 AI 先阅读此文档。**
 
 ## 概览
 
 ```
-config.Config（25 个字段）
+config.Config（31 个字段）
 ├── 嵌入模型相关（10个字段） → 仅 embedding 包使用
 ├── 向量存储相关（5个字段）  → 仅 search 包使用
 ├── 索引相关（6个字段）      → indexer 包使用
 ├── 超时相关（2个字段）      → tools.go 使用
-└── 其他（2个字段）          → main.go/server.go 初始化
+└── Stats 相关（8个字段）    → tokenstats 包使用
 ```
 
 ## 各子系统实际依赖的配置字段
@@ -51,6 +51,7 @@ config.Config（25 个字段）
 | 配置字段 | 使用的函数 | 用途 |
 |----------|-----------|------|
 | `ScanExtensions` | `ScanFiles`、增量/全量构建的所有路径 | 扫描哪些文件后缀 |
+| `ChunkSize` | `SplitByStructure` | 降级切分时的块大小 |
 | `MaxChunkSize` | `SplitByStructure` | 单个代码块的最大大小 |
 | `AutoIndex` | `CheckAndAutoIndex` | 是否在启动时自动索引 |
 | `ProjectPath` | `NewIndexManager` | 要索引的项目路径 |
@@ -67,7 +68,20 @@ config.Config（25 个字段）
 
 ### 5. `internal/server/server.go` — MCP 服务器
 
-> 💡 server.go 存储 `cfg` 但没有使用任何配置字段。保留它只是为了兼容工具注册的接口签名。
+> 💡 server.go 存储 `cfg` 但没有使用任何配置字段。保留它只是为了兼容工具注册的接口签名。新增的 `tracker` 字段通过 `SetTracker` 注入，不经过 Config。
+
+### 6. `internal/tokenstats/` — Token 节省统计
+
+| 配置字段 | 使用的函数 | 用途 |
+|----------|-----------|------|
+| `TokenStatsEnabled` | `main.go runMCPMode` | 是否启用统计 |
+| `TokenStatsPath` | `NewStore` | 统计文件持久化路径 |
+| `TokenStatsCharsPerToken` | `NewTracker` | 字符/token 转换系数 |
+| `TokenStatsCodeSearchBaseline` | `NewTracker` → `BaselineConfig` | code_search 基线 |
+| `TokenStatsFileContextBaseline` | `NewTracker` → `BaselineConfig` | file_context 基线 |
+| `TokenStatsSymbolSearchBaseline` | `NewTracker` → `BaselineConfig` | symbol_search 基线 |
+| `TokenStatsImpactAnalysisBaseline` | `NewTracker` → `BaselineConfig` | impact_analysis 基线 |
+| `TokenStatsRetentionDays` | `NewTracker` | 统计数据保留天数 |
 
 ## 修改时的重要规则
 

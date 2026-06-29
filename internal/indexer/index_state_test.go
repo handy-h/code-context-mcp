@@ -3,6 +3,7 @@ package indexer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/handy-h/code-context-mcp/internal/types"
@@ -42,8 +43,13 @@ func TestComputeMtimeFingerprint_DifferentInputs(t *testing.T) {
 
 func TestNewIndexStateStore_DefaultPath(t *testing.T) {
 	store := NewIndexStateStore("/project", "")
-	if store.filePath != filepath.Join("/project", ".code-context-index-state.json") {
-		t.Errorf("default path = %q", store.filePath)
+	// 默认路径不应基于 projectPath（改为 exe_dir 基准）
+	if strings.Contains(store.filePath, "/project") {
+		t.Errorf("default path should not be based on projectPath, got %q", store.filePath)
+	}
+	// 应以 index-state.json 结尾
+	if !strings.HasSuffix(store.filePath, "index-state.json") {
+		t.Errorf("default path should end with index-state.json, got %q", store.filePath)
 	}
 }
 

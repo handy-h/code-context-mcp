@@ -68,7 +68,7 @@ git clone https://github.com/handy-h/code-context-mcp.git
 cd code-context-mcp
 make build
 
-# 部署（构建并复制到 code-text/ 目录）
+# 部署（构建并复制到 code-context-mcp/ 目录）
 make deploy
 
 # 运行测试
