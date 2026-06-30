@@ -57,7 +57,9 @@ cd code-context-mcp
 make build
 ```
 
-`make build` 会将可执行文件构建到 `cmd/code-context-mcp/code-context-mcp`。本地 JSONL 模式索引后也会把向量文件写到可执行文件同目录，便于把整个 `code-context-mcp/` 复制到其他项目中配置 MCP。
+`make build` 会将可执行文件构建到项目根目录的 `code-context-mcp/code-context-mcp` 目录。本地 JSONL 模式索引后也会把向量文件写到可执行文件同目录，便于把整个 `code-context-mcp/` 复制到其他项目中配置 MCP。
+
+对于 Windows 用户，可以使用 `.\build.ps1 build` 命令，效果相同。
 
 ### 3. 配置环境变量
 
@@ -863,7 +865,7 @@ TOKEN_STATS_ENABLED=true
 
 ## 开发与构建
 
-### 使用 Makefile
+### 使用 Makefile（Linux/macOS）
 
 项目包含一个 Makefile 简化常见操作：
 
@@ -886,6 +888,44 @@ make fmt
 # 清理构建产物
 make clean
 ```
+
+### 使用 PowerShell 脚本（Windows）
+
+对于 Windows 用户，项目提供了 `build.ps1` PowerShell 脚本，提供与 Makefile 相同的功能：
+
+```powershell
+# 查看所有可用命令
+.\build.ps1 help
+
+# 构建二进制文件到 code-context-mcp/ 目录
+.\build.ps1 build
+
+# 运行测试
+.\build.ps1 test
+
+# 清理构建产物
+.\build.ps1 clean
+
+# 运行代码检查
+.\build.ps1 lint
+
+# 格式化代码
+.\build.ps1 fmt
+
+# 显示版本信息
+.\build.ps1 version
+
+# 构建并运行开发模式
+.\build.ps1 dev
+
+# 运行测试并生成覆盖率报告
+.\build.ps1 test-coverage
+
+# 安装到 GOPATH/bin
+.\build.ps1 install
+```
+
+详细的使用说明请参考 [BUILD_WINDOWS.md](BUILD_WINDOWS.md)。
 
 
 

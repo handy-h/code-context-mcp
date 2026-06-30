@@ -5,6 +5,7 @@
 # Variables
 BINARY_NAME := code-context-mcp
 BINARY_PATH := cmd/code-context-mcp/$(BINARY_NAME)
+OUTPUT_PATH := $(BINARY_NAME)/$(BINARY_NAME)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD)
 DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
@@ -19,7 +20,8 @@ help: ## Display this help message
 
 build: ## Build the binary
 	@echo "Building $(BINARY_NAME)..."
-	@CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_PATH) ./cmd/code-context-mcp
+	@mkdir -p $(BINARY_NAME)
+	@CGO_ENABLED=0 go build -v -trimpath -ldflags="$(LDFLAGS)" -o $(OUTPUT_PATH) ./cmd/code-context-mcp
 
 install: ## Install the binary to $GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
@@ -53,7 +55,8 @@ fmt: ## Format code
 
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
-	@rm -f $(BINARY_PATH) $(BINARY_PATH).exe coverage.out coverage.html
+	@rm -f $(BINARY_PATH) $(BINARY_PATH).exe $(OUTPUT_PATH) $(OUTPUT_PATH).exe coverage.out coverage.html
+	@rm -rf $(BINARY_NAME)
 
 version: ## Show version information
 	@echo "Version: $(VERSION)"
@@ -61,5 +64,5 @@ version: ## Show version information
 	@echo "Date: $(DATE)"
 
 dev: build ## Build and run in development mode (index current directory)
-	@./$(BINARY_PATH) -index .
+	@./$(OUTPUT_PATH) -index .
 
