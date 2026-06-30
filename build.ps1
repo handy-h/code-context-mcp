@@ -8,7 +8,8 @@ param(
 # 变量定义
 $BINARY_NAME = "code-context-mcp"
 $BINARY_PATH = "cmd/code-context-mcp/${BINARY_NAME}"
-$OUTPUT_PATH = "${BINARY_NAME}/${BINARY_NAME}"
+$OUTPUT_BIN = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { "${BINARY_NAME}.exe" } else { "${BINARY_NAME}" }
+$OUTPUT_PATH = "${BINARY_NAME}/${OUTPUT_BIN}"
 $GOLANGCI_LINT_VERSION = "v1.64.8"
 
 # 获取版本信息
@@ -106,7 +107,6 @@ function Invoke-Clean {
         $BINARY_PATH,
         "${BINARY_PATH}.exe",
         $OUTPUT_PATH,
-        "${OUTPUT_PATH}.exe",
         "coverage.out",
         "coverage.html"
     )

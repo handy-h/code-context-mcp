@@ -31,7 +31,7 @@
 ```powershell
 .\build.ps1 build
 ```
-构建成功后，可执行文件将生成在 `code-context-mcp\code-context-mcp.exe`（或 `code-context-mcp\code-context-mcp`）
+构建成功后，可执行文件将生成在 `code-context-mcp\code-context-mcp.exe`
 
 ### 3. 运行测试
 ```powershell
@@ -79,7 +79,7 @@ Set-ExecutionPolicy Bypass -Scope Process
 ## 与 Makefile 的差异
 
 1. **路径分隔符**：使用 Windows 路径分隔符 `\`
-2. **文件扩展名**：Windows 上生成 `.exe` 扩展名
+2. **文件扩展名**：Windows 上自动生成 `.exe` 扩展名（Linux/macOS 无扩展名）
 3. **环境变量**：使用 PowerShell 的 `$env:` 语法
 4. **命令执行**：使用 PowerShell 的 `&` 操作符执行外部命令
 

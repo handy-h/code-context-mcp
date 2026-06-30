@@ -57,9 +57,7 @@ cd code-context-mcp
 make build
 ```
 
-`make build` 会将可执行文件构建到项目根目录的 `code-context-mcp/code-context-mcp` 目录。本地 JSONL 模式索引后也会把向量文件写到可执行文件同目录，便于把整个 `code-context-mcp/` 复制到其他项目中配置 MCP。
-
-对于 Windows 用户，可以使用 `.\build.ps1 build` 命令，效果相同。
+`make build`（Linux/macOS）会将可执行文件构建到 `code-context-mcp/code-context-mcp`；`build.ps1 build`（Windows）会构建到 `code-context-mcp/code-context-mcp.exe`。本地 JSONL 模式索引后也会把向量文件写到可执行文件同目录，便于把整个 `code-context-mcp/` 复制到其他项目中配置 MCP。
 
 ### 3. 配置环境变量
 
@@ -98,6 +96,8 @@ PROJECT_PATH=/path/to/your/project
 ```bash
 # 构建索引，自动写入本地 JSONL 或 Zilliz
 ./code-context-mcp/code-context-mcp -index /path/to/your/project
+# Windows 用户:
+# .\code-context-mcp\code-context-mcp.exe -index D:\your\project
 ```
 
 **本地 JSONL 验证**：
