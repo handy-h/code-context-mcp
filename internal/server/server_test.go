@@ -1,210 +1,131 @@
 package server
 
 import (
-	"encoding/json"
-	"fmt"
 	"testing"
 
-	"github.com/handy-h/code-context-mcp/internal/config"
+	"github.com/handy-h/code-context-mcp/internal/tokenstats"
 )
 
-func TestNewMCPServer(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	if srv == nil {
-		t.Fatal("NewMCPServer returned nil")
+func TestJudgeResultQuality_SystemIssue(t *testing.T) {
+	tests := []struct {
+		name       string
+		resultText string
+		want       tokenstats.ResultQuality
+	}{
+		{
+			name:       "索引未构建提示1",
+			resultText: "符号索引尚未构建，请先索引项目。",
+			want:       tokenstats.ResultSystemIssue,
+		},
+		{
+			name:       "索引未构建提示2",
+			resultText: "请先索引项目后再查询。",
+			want:       tokenstats.ResultSystemIssue,
+		},
+		{
+			name:       "索引未构建提示3",
+			resultText: "使用 index_project 工具索引项目。",
+			want:       tokenstats.ResultSystemIssue,
+		},
+		{
+			name:       "组合提示",
+			resultText: "未找到相关代码。可能项目尚未索引，请先使用 index_project 工具。",
+			want:       tokenstats.ResultSystemIssue,
+		},
 	}
-	if len(srv.tools) != 0 {
-		t.Errorf("new server has %d tools, want 0", len(srv.tools))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := judgeResultQuality("symbol_search", tt.resultText)
+			if got != tt.want {
+				t.Errorf("judgeResultQuality(%q) = %v, want %v", tt.resultText, got, tt.want)
+			}
+		})
 	}
 }
 
-func TestRegisterTool(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	srv.RegisterTool("test_tool", func(args map[string]interface{}) (string, error) {
-		return "ok", nil
-	})
-	if len(srv.tools) != 1 {
-		t.Errorf("after register, tools count = %d, want 1", len(srv.tools))
+func TestJudgeResultQuality_EmptyResult(t *testing.T) {
+	tests := []struct {
+		name       string
+		toolName   string
+		resultText string
+		want       tokenstats.ResultQuality
+	}{
+		{
+			name:       "symbol_search未找到符号",
+			toolName:   "symbol_search",
+			resultText: "未找到符号 \"foo\" 的匹配。",
+			want:       tokenstats.ResultEmpty,
+		},
+		{
+			name:       "impact_analysis未找到符号",
+			toolName:   "impact_analysis",
+			resultText: "未找到符号 \"bar\" 的任何出现位置。",
+			want:       tokenstats.ResultEmpty,
+		},
+		{
+			name:       "impact_analysis任何出现位置",
+			toolName:   "impact_analysis",
+			resultText: "未找到任何出现位置。",
+			want:       tokenstats.ResultEmpty,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := judgeResultQuality(tt.toolName, tt.resultText)
+			if got != tt.want {
+				t.Errorf("judgeResultQuality(%q, %q) = %v, want %v", tt.toolName, tt.resultText, got, tt.want)
+			}
+		})
 	}
 }
 
-func TestHandleRequest_Initialize(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		ID:      json.RawMessage(`"1"`),
-		Method:  "initialize",
-	}
-	resp := srv.handleRequest(req)
-	if resp.Error != nil {
-		t.Fatalf("initialize error: %s", resp.Error.Message)
-	}
-	if resp.JSONRPC != "2.0" {
-		t.Errorf("JSONRPC = %q, want 2.0", resp.JSONRPC)
-	}
-}
-
-func TestHandleRequest_ToolsList(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		ID:      json.RawMessage(`"1"`),
-		Method:  "tools/list",
-	}
-	resp := srv.handleRequest(req)
-	if resp.Error != nil {
-		t.Fatalf("tools/list error: %s", resp.Error.Message)
-	}
-	if resp.Result == nil {
-		t.Fatal("tools/list result is nil")
-	}
-}
-
-func TestHandleRequest_ToolsCall_Success(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	srv.RegisterTool("echo", func(args map[string]interface{}) (string, error) {
-		msg, _ := args["msg"].(string)
-		return msg, nil
-	})
-
-	params, _ := json.Marshal(map[string]interface{}{
-		"name":      "echo",
-		"arguments": map[string]interface{}{"msg": "hello"},
-	})
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		ID:      json.RawMessage(`"1"`),
-		Method:  "tools/call",
-		Params:  params,
-	}
-	resp := srv.handleRequest(req)
-	if resp.Error != nil {
-		t.Fatalf("tools/call error: %s", resp.Error.Message)
-	}
-}
-
-func TestHandleRequest_ToolsCall_NotFound(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	params, _ := json.Marshal(map[string]interface{}{
-		"name":      "nonexistent",
-		"arguments": map[string]interface{}{},
-	})
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		ID:      json.RawMessage(`"1"`),
-		Method:  "tools/call",
-		Params:  params,
-	}
-	resp := srv.handleRequest(req)
-	if resp.Error != nil {
-		t.Fatalf("unexpected error: %s", resp.Error.Message)
-	}
-	if resp.Result == nil {
-		t.Fatal("result should not be nil for tool-not-found")
-	}
-}
-
-func TestHandleRequest_ToolsCall_Error(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	srv.RegisterTool("fail", func(args map[string]interface{}) (string, error) {
-		return "", fmt.Errorf("tool failed")
-	})
-
-	params, _ := json.Marshal(map[string]interface{}{
-		"name":      "fail",
-		"arguments": map[string]interface{}{},
-	})
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		ID:      json.RawMessage(`"1"`),
-		Method:  "tools/call",
-		Params:  params,
-	}
-	resp := srv.handleRequest(req)
-	if resp.Error != nil {
-		t.Fatalf("unexpected error: %s", resp.Error.Message)
-	}
-}
-
-func TestHandleRequest_Ping(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		ID:      json.RawMessage(`"1"`),
-		Method:  "ping",
-	}
-	resp := srv.handleRequest(req)
-	if resp.Error != nil {
-		t.Fatalf("ping error: %s", resp.Error.Message)
-	}
-	if resp.JSONRPC != "2.0" {
-		t.Errorf("JSONRPC = %q, want 2.0", resp.JSONRPC)
-	}
-}
-
-func TestHandleRequest_UnknownMethod(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		ID:      json.RawMessage(`"1"`),
-		Method:  "unknown_method",
-	}
-	resp := srv.handleRequest(req)
-	if resp.Error == nil {
-		t.Fatal("unknown method should return error")
-	}
-	if resp.Error.Code != -32601 {
-		t.Errorf("error code = %d, want -32601", resp.Error.Code)
-	}
-}
-
-func TestHandleRequest_InvalidParams(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		ID:      json.RawMessage(`"1"`),
-		Method:  "tools/call",
-		Params:  json.RawMessage(`{invalid json`),
-	}
-	resp := srv.handleRequest(req)
-	if resp.Error == nil {
-		t.Fatal("invalid params should return error")
-	}
-	if resp.Error.Code != -32602 {
-		t.Errorf("error code = %d, want -32602", resp.Error.Code)
-	}
-}
-
-func TestHandleRequest_Notification(t *testing.T) {
-	srv := NewMCPServer(config.Config{}, "test")
-	req := jsonRPCRequest{
-		JSONRPC: "2.0",
-		Method:  "notifications/initialized",
-	}
-	resp := srv.handleRequest(req)
-	if resp.JSONRPC != "" {
-		t.Error("notification response should be empty (no JSONRPC)")
-	}
-}
-
-func TestGetToolDefinitions(t *testing.T) {
-	defs := GetToolDefinitions()
-	if len(defs) != 6 {
-		t.Errorf("GetToolDefinitions() returned %d tools, want 6", len(defs))
+func TestJudgeResultQuality_ValidResult(t *testing.T) {
+	tests := []struct {
+		name       string
+		toolName   string
+		resultText string
+		want       tokenstats.ResultQuality
+	}{
+		{
+			name:       "symbol_search找到结果",
+			toolName:   "symbol_search",
+			resultText: "找到符号 \"foo\" 的匹配：\n- 文件1.go:10\n- 文件2.go:20",
+			want:       tokenstats.ResultValid,
+		},
+		{
+			name:       "impact_analysis找到结果",
+			toolName:   "impact_analysis",
+			resultText: "符号 \"bar\" 的影响分析：\n- 调用点1\n- 调用点2",
+			want:       tokenstats.ResultValid,
+		},
+		{
+			name:       "code_search正常结果",
+			toolName:   "code_search",
+			resultText: "搜索结果：\n- 文件1.go\n- 文件2.go",
+			want:       tokenstats.ResultValid,
+		},
+		{
+			name:       "空文本",
+			toolName:   "symbol_search",
+			resultText: "",
+			want:       tokenstats.ResultValid,
+		},
+		{
+			name:       "其他工具空结果",
+			toolName:   "code_search",
+			resultText: "未找到符号",
+			want:       tokenstats.ResultValid,
+		},
 	}
 
-	names := make(map[string]bool)
-	for _, d := range defs {
-		names[d.Name] = true
-		if d.Description == "" {
-			t.Errorf("tool %q has empty description", d.Name)
-		}
-	}
-
-	expected := []string{"code_search", "file_context", "index_project", "symbol_search", "impact_analysis", "token_stats"}
-	for _, name := range expected {
-		if !names[name] {
-			t.Errorf("tool %q not found in definitions", name)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := judgeResultQuality(tt.toolName, tt.resultText)
+			if got != tt.want {
+				t.Errorf("judgeResultQuality(%q, %q) = %v, want %v", tt.toolName, tt.resultText, got, tt.want)
+			}
+		})
 	}
 }

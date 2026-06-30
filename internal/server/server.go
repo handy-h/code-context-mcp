@@ -287,21 +287,21 @@ func (s *MCPServer) handleToolsCall(req jsonRPCRequest) jsonRPCResponse {
 // judgeResultQuality 根据工具名称和返回文本判断结果质量
 func judgeResultQuality(toolName, resultText string) tokenstats.ResultQuality {
 	// 系统状态问题：索引未构建
-	if strings.Contains(resultText, "符号索引尚未构建") ||
-		strings.Contains(resultText, "请先索引项目") ||
-		strings.Contains(resultText, "使用 index_project 工具") {
+	if strings.Contains(resultText, tokenstats.MsgIndexNotBuilt1) ||
+		strings.Contains(resultText, tokenstats.MsgIndexNotBuilt2) ||
+		strings.Contains(resultText, tokenstats.MsgIndexNotBuilt3) {
 		return tokenstats.ResultSystemIssue
 	}
 
 	// 空结果：查询正常执行但未找到匹配
 	switch toolName {
 	case "symbol_search":
-		if strings.Contains(resultText, "未找到符号") {
+		if strings.Contains(resultText, tokenstats.MsgSymbolNotFound) {
 			return tokenstats.ResultEmpty
 		}
 	case "impact_analysis":
-		if strings.Contains(resultText, "未找到符号") ||
-			strings.Contains(resultText, "任何出现位置") {
+		if strings.Contains(resultText, tokenstats.MsgSymbolNotFound) ||
+			strings.Contains(resultText, tokenstats.MsgNoOccurrences) {
 			return tokenstats.ResultEmpty
 		}
 	}
