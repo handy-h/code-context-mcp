@@ -55,7 +55,7 @@ func (t *Tracker) Record(rec ToolCallRecord) error {
 	}
 
 	outputTokens := EstimateTokens(rec.OutputText, t.charsPerToken)
-	savedTokens := t.baseline.EstimateSavedTokens(rec.ToolName, rec.Args, outputTokens)
+	savedTokens, wastedTokens := t.baseline.CalculateMetrics(rec.ToolName, rec.Args, outputTokens, rec.ResultQuality)
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -64,6 +64,7 @@ func (t *Tracker) Record(rec ToolCallRecord) error {
 	t.snapshot.TotalCalls++
 	t.snapshot.TotalOutputTokens += int64(outputTokens)
 	t.snapshot.TotalSavedTokens += int64(savedTokens)
+	t.snapshot.TotalWastedTokens += int64(wastedTokens)
 
 	// 更新 by_tool
 	tool, ok := t.snapshot.ByTool[rec.ToolName]
@@ -74,11 +75,12 @@ func (t *Tracker) Record(rec ToolCallRecord) error {
 	tool.CallCount++
 	tool.TotalOutputTokens += int64(outputTokens)
 	tool.TotalSavedTokens += int64(savedTokens)
+	tool.TotalWastedTokens += int64(wastedTokens)
 	tool.TotalDurationMs += rec.DurationMs
 
 	// 更新 daily
 	dateStr := rec.Timestamp.Format("2006-01-02")
-	t.updateDaily(dateStr, int64(outputTokens), int64(savedTokens))
+	t.updateDaily(dateStr, int64(outputTokens), int64(savedTokens), int64(wastedTokens))
 
 	// 裁剪过期 daily
 	t.pruneDaily(rec.Timestamp)
@@ -131,13 +133,14 @@ func (t *Tracker) Flush() error {
 	return nil
 }
 
-func (t *Tracker) updateDaily(dateStr string, outputTokens, savedTokens int64) {
+func (t *Tracker) updateDaily(dateStr string, outputTokens, savedTokens, wastedTokens int64) {
 	// 查找现有条目
 	for i := len(t.snapshot.Daily) - 1; i >= 0; i-- {
 		if t.snapshot.Daily[i].Date == dateStr {
 			t.snapshot.Daily[i].CallCount++
 			t.snapshot.Daily[i].OutputTokens += outputTokens
 			t.snapshot.Daily[i].SavedTokens += savedTokens
+			t.snapshot.Daily[i].WastedTokens += wastedTokens
 			return
 		}
 	}
@@ -148,6 +151,7 @@ func (t *Tracker) updateDaily(dateStr string, outputTokens, savedTokens int64) {
 		CallCount:    1,
 		OutputTokens: outputTokens,
 		SavedTokens:  savedTokens,
+		WastedTokens: wastedTokens,
 	})
 }
 

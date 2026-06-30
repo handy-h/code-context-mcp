@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -249,12 +250,14 @@ func (s *MCPServer) handleToolsCall(req jsonRPCRequest) jsonRPCResponse {
 	// token 统计埋点
 	if s.tracker != nil && err == nil {
 		duration := time.Since(start)
+		resultQuality := judgeResultQuality(params.Name, resultText)
 		if recordErr := s.tracker.Record(tokenstats.ToolCallRecord{
-			ToolName:   params.Name,
-			Args:       params.Arguments,
-			OutputText: resultText,
-			DurationMs: duration.Milliseconds(),
-			Timestamp:  start,
+			ToolName:      params.Name,
+			Args:          params.Arguments,
+			OutputText:    resultText,
+			DurationMs:    duration.Milliseconds(),
+			Timestamp:     start,
+			ResultQuality: resultQuality,
 		}); recordErr != nil {
 			slog.Warn("记录 token 统计失败", "err", recordErr)
 		}
@@ -279,4 +282,29 @@ func (s *MCPServer) handleToolsCall(req jsonRPCRequest) jsonRPCResponse {
 			Content: []toolContent{{Type: "text", Text: resultText}},
 		},
 	}
+}
+
+// judgeResultQuality 根据工具名称和返回文本判断结果质量
+func judgeResultQuality(toolName, resultText string) tokenstats.ResultQuality {
+	// 系统状态问题：索引未构建
+	if strings.Contains(resultText, "符号索引尚未构建") ||
+		strings.Contains(resultText, "请先索引项目") ||
+		strings.Contains(resultText, "使用 index_project 工具") {
+		return tokenstats.ResultSystemIssue
+	}
+
+	// 空结果：查询正常执行但未找到匹配
+	switch toolName {
+	case "symbol_search":
+		if strings.Contains(resultText, "未找到符号") {
+			return tokenstats.ResultEmpty
+		}
+	case "impact_analysis":
+		if strings.Contains(resultText, "未找到符号") ||
+			strings.Contains(resultText, "任何出现位置") {
+			return tokenstats.ResultEmpty
+		}
+	}
+
+	return tokenstats.ResultValid
 }

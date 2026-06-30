@@ -106,20 +106,40 @@ func TestBaseline_UnknownTool(t *testing.T) {
 	}
 }
 
-func TestEstimateSavedTokens_NotNegative(t *testing.T) {
+func TestCalculateMetrics_ValidResult_NotNegative(t *testing.T) {
 	cfg := BaselineConfig{CodeSearchFileTokens: 2000}
-	// 输出超过基线，节省应为0
-	saved := cfg.EstimateSavedTokens("code_search", map[string]interface{}{"top_k": 1.0}, 10000)
+	saved, _ := cfg.CalculateMetrics("code_search", map[string]interface{}{"top_k": 1.0}, 10000, ResultValid)
 	if saved != 0 {
-		t.Errorf("EstimateSavedTokens over baseline = %d, want 0", saved)
+		t.Errorf("CalculateMetrics over baseline = %d, want 0", saved)
 	}
 }
 
-func TestEstimateSavedTokens_UnderBaseline(t *testing.T) {
+func TestCalculateMetrics_ValidResult_UnderBaseline(t *testing.T) {
 	cfg := BaselineConfig{CodeSearchFileTokens: 2000}
-	// 输出远低于基线
-	saved := cfg.EstimateSavedTokens("code_search", map[string]interface{}{"top_k": 1.0}, 500)
+	saved, _ := cfg.CalculateMetrics("code_search", map[string]interface{}{"top_k": 1.0}, 500, ResultValid)
 	if saved != 1500 {
-		t.Errorf("EstimateSavedTokens under baseline = %d, want 1500", saved)
+		t.Errorf("CalculateMetrics under baseline = %d, want 1500", saved)
+	}
+}
+
+func TestCalculateMetrics_EmptyResult_Wasted(t *testing.T) {
+	cfg := BaselineConfig{CodeSearchFileTokens: 2000}
+	saved, wasted := cfg.CalculateMetrics("code_search", map[string]interface{}{"top_k": 1.0}, 150, ResultEmpty)
+	if saved != 0 {
+		t.Errorf("CalculateMetrics empty result saved = %d, want 0", saved)
+	}
+	if wasted != 150 {
+		t.Errorf("CalculateMetrics empty result wasted = %d, want 150", wasted)
+	}
+}
+
+func TestCalculateMetrics_SystemIssue_Wasted(t *testing.T) {
+	cfg := BaselineConfig{CodeSearchFileTokens: 2000}
+	saved, wasted := cfg.CalculateMetrics("symbol_search", nil, 80, ResultSystemIssue)
+	if saved != 0 {
+		t.Errorf("CalculateMetrics system issue saved = %d, want 0", saved)
+	}
+	if wasted != 80 {
+		t.Errorf("CalculateMetrics system issue wasted = %d, want 80", wasted)
 	}
 }

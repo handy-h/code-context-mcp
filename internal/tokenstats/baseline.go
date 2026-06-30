@@ -10,15 +10,25 @@ type BaselineConfig struct {
 	ImpactAnalysisBaseline  int // 默认 12000
 }
 
-// EstimateSavedTokens 计算单次调用节省量
-// saved = max(0, baseline - outputTokens)
-func (c BaselineConfig) EstimateSavedTokens(toolName string, args map[string]interface{}, outputTokens int) int {
-	baseline := c.calcBaseline(toolName, args)
-	saved := baseline - outputTokens
-	if saved < 0 {
-		return 0
+// CalculateMetrics 根据结果质量计算节省和浪费token
+// 有效结果：saved = max(0, baseline - outputTokens), wasted = 0
+// 空结果/系统状态：saved = 0, wasted = outputTokens
+func (c BaselineConfig) CalculateMetrics(toolName string, args map[string]interface{}, outputTokens int, quality ResultQuality) (saved int, wasted int) {
+	switch quality {
+	case ResultValid:
+		baseline := c.calcBaseline(toolName, args)
+		saved = baseline - outputTokens
+		if saved < 0 {
+			saved = 0
+		}
+		wasted = 0
+	default:
+		// ResultEmpty 或 ResultSystemIssue：整个输出算浪费
+		saved = 0
+		wasted = outputTokens
 	}
-	return saved
+
+	return saved, wasted
 }
 
 func (c BaselineConfig) calcBaseline(toolName string, args map[string]interface{}) int {
