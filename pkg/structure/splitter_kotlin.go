@@ -12,14 +12,15 @@ import (
 // import/package 归入 header 块
 
 var (
-	// 函数：支持 visibility、suspend、inline、tailrec、operator、infix、external、override 修饰符
+	// 函数：支持 visibility、suspend、inline、tailrec、operator、infix、external、override、expect、actual 修饰符
 	// 匹配: fun name( 或 suspend fun name( 等；支持泛型参数 fun <T> name(
-	kotlinFuncRe = regexp.MustCompile(`^\s*(?:(?:public|private|internal|protected|open|override)\s+)?(?:(?:suspend|inline|tailrec|operator|infix|external)\s+)*fun\s+(?:<[^>]+>\s*)?(\w+)`)
+	kotlinFuncRe = regexp.MustCompile(`^\s*(?:(?:public|private|internal|protected|open|override|expect|actual)\s+)?(?:(?:suspend|inline|tailrec|operator|infix|external)\s+)*fun\s+(?:<[^>]+>\s*)?(\w+)`)
 
-	// class: 匹配 class/data class/sealed class/enum class/open class/abstract class/inner class/annotation class/value class
-	kotlinClassRe = regexp.MustCompile(`^\s*(?:(?:public|private|internal|protected|open|abstract|sealed)\s+)?(?:data|sealed|abstract|open|inner|companion)?\s*class\s+(\w+)`)
+	// class: 匹配 class/data class/sealed class/open class/abstract class/inner class
+	// 支持 expect/actual (Kotlin Multiplatform)
+	kotlinClassRe = regexp.MustCompile(`^\s*(?:(?:public|private|internal|protected|open|abstract)\s+)?(?:expect|actual)?\s*(?:data\s+)?(?:sealed\s+)?(?:abstract\s+)?(?:open\s+)?(?:inner\s+)?class\s+(\w+)`)
 
-	// enum class (单独处理，因为 enum class 可能和 class 正则冲突)
+	// enum class (单独处理)
 	kotlinEnumClassRe = regexp.MustCompile(`^\s*enum\s+class\s+(\w+)`)
 
 	// annotation class
@@ -28,12 +29,12 @@ var (
 	// value class / inline class
 	kotlinValueClassRe = regexp.MustCompile(`^\s*(?:value|inline)\s+class\s+(\w+)`)
 
-	// interface
-	kotlinInterfaceRe = regexp.MustCompile(`^\s*(?:(?:public|private|internal|protected)\s+)?interface\s+(\w+)`)
+	// interface (支持 expect/actual)
+	kotlinInterfaceRe = regexp.MustCompile(`^\s*(?:(?:public|private|internal|protected)\s+)?(?:expect|actual)?\s*interface\s+(\w+)`)
 
-	// object / companion object (支持命名和无名 companion object)
-	kotlinObjectRe        = regexp.MustCompile(`^\s*object\s+(\w+)`)
-	kotlinCompanionRe     = regexp.MustCompile(`^\s*companion\s+object(?:\s+(\w+))?`)
+	// object / companion object / data object
+	kotlinObjectRe    = regexp.MustCompile(`^\s*(?:data\s+)?object\s+(\w+)`)
+	kotlinCompanionRe = regexp.MustCompile(`^\s*companion\s+object(?:\s+(\w+))?`)
 
 	// typealias
 	kotlinTypealiasRe = regexp.MustCompile(`^\s*typealias\s+(\w+)`)
@@ -63,117 +64,96 @@ func chunkKotlin(content string, filePath string) []types.CodeChunk {
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		// 跳过空行和注释
+		// 跳过空行和注释（注释行不跟踪括号，避免注释内的括号影响深度判断）
 		if trimmed == "" ||
 			strings.HasPrefix(trimmed, "//") ||
 			strings.HasPrefix(trimmed, "/*") ||
 			strings.HasPrefix(trimmed, "*") {
-			// 仍然跟踪括号
-			parenDepth += strings.Count(trimmed, "(") - strings.Count(trimmed, ")")
-			braceDepth += strings.Count(trimmed, "{") - strings.Count(trimmed, "}")
-			// 括号深度归零?同步
-			if parenDepth < 0 {
-				parenDepth = 0
-			}
-			if braceDepth < 0 {
-				braceDepth = 0
-			}
 			continue
 		}
 
-		// 计算本行的括号变化（先算，用于判断是否在深度内）
+		// 计算本行的括号变化
 		lineParenDelta := strings.Count(trimmed, "(") - strings.Count(trimmed, ")")
 		lineBraceDelta := strings.Count(trimmed, "{") - strings.Count(trimmed, "}")
 
 		// import/package 行：仅顶层计入 header
 		if kotlinImportRe.MatchString(trimmed) && parenDepth == 0 && braceDepth == 0 {
 			importEndLine = i + 1
-			parenDepth += lineParenDelta
-			braceDepth += lineBraceDelta
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
-		// companion object（含无名）
+		// companion object（含无名，先于 object 匹配）
 		if m := kotlinCompanionRe.FindStringSubmatch(trimmed); m != nil {
 			symbol := "Companion"
 			if m[1] != "" {
 				symbol = m[1]
 			}
 			boundaries = append(boundaries, boundary{i, symbol, "companion_object"})
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
-		// object (non-companion)
+		// data object / object (non-companion)
 		if m := kotlinObjectRe.FindStringSubmatch(trimmed); m != nil && !strings.Contains(trimmed, "companion") {
-			boundaries = append(boundaries, boundary{i, m[1], "object"})
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			kind := "object"
+			if strings.Contains(trimmed, "data") {
+				kind = "data_object"
+			}
+			boundaries = append(boundaries, boundary{i, m[1], kind})
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
-		// enum class（先于普通 class 匹配）
+		// enum class
 		if m := kotlinEnumClassRe.FindStringSubmatch(trimmed); m != nil {
 			boundaries = append(boundaries, boundary{i, m[1], "enum"})
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
 		// annotation class
 		if m := kotlinAnnotationClassRe.FindStringSubmatch(trimmed); m != nil {
 			boundaries = append(boundaries, boundary{i, m[1], "annotation"})
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
 		// value class / inline class
 		if m := kotlinValueClassRe.FindStringSubmatch(trimmed); m != nil {
 			boundaries = append(boundaries, boundary{i, m[1], "value_class"})
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
 		// interface
 		if m := kotlinInterfaceRe.FindStringSubmatch(trimmed); m != nil {
 			boundaries = append(boundaries, boundary{i, m[1], "interface"})
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
-		// class/data class/sealed class 等
+		// class/data class/sealed class/expect class/actual class 等
 		if m := kotlinClassRe.FindStringSubmatch(trimmed); m != nil {
-			kind := "class"
-			if strings.Contains(trimmed, "data") {
-				kind = "data_class"
-			} else if strings.Contains(trimmed, "sealed") {
-				kind = "sealed_class"
-			}
+			kind := determineClassKind(trimmed)
 			boundaries = append(boundaries, boundary{i, m[1], kind})
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
-		// typealias
+		// typealias（仅顶层）
 		if m := kotlinTypealiasRe.FindStringSubmatch(trimmed); m != nil {
 			if parenDepth == 0 && braceDepth == 0 {
 				boundaries = append(boundaries, boundary{i, m[1], "typealias"})
 			}
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
 		// fun（函数/方法）
 		if m := kotlinFuncRe.FindStringSubmatch(trimmed); m != nil {
 			boundaries = append(boundaries, boundary{i, m[1], "function"})
-			parenDepth = max(parenDepth+lineParenDelta, 0)
-			braceDepth = max(braceDepth+lineBraceDelta, 0)
+			updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 			continue
 		}
 
@@ -186,9 +166,8 @@ func chunkKotlin(content string, filePath string) []types.CodeChunk {
 			}
 		}
 
-		// 更新括号深度
-		parenDepth = max(parenDepth+lineParenDelta, 0)
-		braceDepth = max(braceDepth+lineBraceDelta, 0)
+		// 统一更新括号深度
+		updateDepths(&parenDepth, &braceDepth, lineParenDelta, lineBraceDelta)
 	}
 
 	// 如果没有找到任何边界且没有header，返回 nil 让上层做整文件切分
@@ -205,7 +184,6 @@ func chunkKotlin(content string, filePath string) []types.CodeChunk {
 	// header 块：package/import 之后、第一个结构之前
 	headerEnd := importEndLine
 	if firstBoundary > headerEnd {
-		// 如果 import 后面还有内容但在第一个结构之前，合并
 		headerEnd = firstBoundary
 	}
 	if headerEnd > 0 {
@@ -254,4 +232,21 @@ func chunkKotlin(content string, filePath string) []types.CodeChunk {
 	}
 
 	return chunks
+}
+
+// updateDepths 统一更新括号深度（clamp 到 0 防止负值）
+func updateDepths(paren, brace *int, parenDelta, braceDelta int) {
+	*paren = max(*paren+parenDelta, 0)
+	*brace = max(*brace+braceDelta, 0)
+}
+
+// determineClassKind 根据行内修饰符判断类型
+func determineClassKind(line string) string {
+	if strings.Contains(line, "data") {
+		return "data_class"
+	}
+	if strings.Contains(line, "sealed") {
+		return "sealed_class"
+	}
+	return "class"
 }

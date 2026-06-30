@@ -144,6 +144,43 @@ private inline fun measureTime(block: () -> Unit): Long {
 			wantLen:   3,
 			wantTypes: []string{"function", "function", "function"},
 		},
+		{
+			name: "注释内括号不影响深度",
+			input: `fun processData(items: List<Int>) {
+    // TODO: handle the case when (x > 0)
+    // FIXME: this might break {if nested}
+    println(items.size)
+}`,
+			wantLen:   1,
+			wantTypes: []string{"function"},
+		},
+		{
+			name: "data object (Kotlin 1.9+)",
+			input: `data object AppConfig {
+    val version: String = "1.0"
+    val debug: Boolean = false
+}
+
+fun readConfig(): AppConfig {
+    return AppConfig
+}`,
+			wantLen:   2,
+			wantTypes: []string{"data_object", "function"},
+		},
+		{
+			name: "expect/actual (Kotlin Multiplatform)",
+			input: `package com.example
+
+expect class Platform
+
+expect fun getPlatformName(): String
+
+actual class Platform {
+    actual fun getPlatformName(): String = "JVM"
+}`,
+			wantLen:   5,
+			wantTypes: []string{"header", "class", "function", "class", "function"},
+		},
 	}
 
 	for _, tt := range tests {
