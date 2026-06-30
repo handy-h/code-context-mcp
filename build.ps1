@@ -1,4 +1,4 @@
-# PowerShell 构建脚本 for code-context-mcp
+﻿# PowerShell 构建脚本 for code-context-mcp
 # 对应 Makefile 的功能
 
 param(
