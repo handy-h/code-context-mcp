@@ -25,6 +25,8 @@ func DetectLanguage(filePath string) string {
 		return "py"
 	case ".rs":
 		return "rust"
+	case ".kt", ".kts":
+		return "kotlin"
 	default:
 		return ""
 	}
@@ -54,6 +56,8 @@ func SplitByStructure(content string, lang string, filePath string, maxChunkSize
 		chunks = chunkPython(content, filePath)
 	case "rust":
 		chunks = chunkRust(content, filePath)
+	case "kotlin":
+		chunks = chunkKotlin(content, filePath)
 	default:
 		// 降级为固定字符窗口切分
 		return chunkByFixedSize(content, filePath, maxChunkSize)
