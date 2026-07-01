@@ -158,8 +158,12 @@ func handleFileContext(cfg config.Config) server.ToolHandler {
 			return "", fmt.Errorf("非法文件路径: 包含目录遍历")
 		}
 
-		fullPath := filepath.Join(root, cleanPath)
-		fullPath = filepath.Clean(fullPath)
+		var fullPath string
+		if filepath.IsAbs(cleanPath) {
+			fullPath = cleanPath
+		} else {
+			fullPath = filepath.Join(root, cleanPath)
+		}
 
 		// 解析符号链接，防止通过 symlink 绕过路径限制
 		rootAbs, err1 := filepath.Abs(root)
